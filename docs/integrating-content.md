@@ -106,6 +106,10 @@ Pick a high, documented band so modules never collide. Known allocations:
 |--------|------|
 | `mod-sod-mage` | `7000000–7000999` |
 
+`mod-sod-mage`'s `sod_mage_quest_runes.sql` is the first real **quest-gated**
+example — a rune mapped in `rune_quest_unlock` (see below) plus the mage quest
+that unlocks it.
+
 ## Order of application
 
 The engine's schema must exist before your rune rows land. With manual SQL apply,
@@ -123,7 +127,8 @@ just to supply runes (and optionally quest-gate them). Two tips for SoD content:
 - Keep each rune **single-slot** (one bit in `slot_mask`), as SoD runes are. A
   multi-slot rune still can't be engraved twice (the guard), but single-slot keeps
   the model clean.
-- Slot unlock levels (`RuneEngraving.SlotMinLevel.*`) and the required ability
+- Slot unlock levels (`RuneEngraving.SlotMinLevel.*`, defaulting to the SoD
+  phase-band starts — P1=1, P2=26, P3=41, P4=51) and the required ability
   (`RuneEngraving.RequiredSpell`) are admin-tuned in the engine's `.conf` — they're
   server policy, not something your runes set.
 
@@ -158,6 +163,37 @@ targeting `rune_quest_unlock`).
 For testing without authoring a quest, a GM can force unlock state:
 `.rune unlock <runeId>` / `.rune lock <runeId>` / `.rune unlocks`.
 
-`rune_contract.version` (currently `1`) lets your SQL sanity-check compatibility.
+## Gating runes behind an item (contract v2)
+
+The item analogue of `rune_quest_unlock`: a rune is unlocked by **using an item**
+instead of completing a quest. Map the item to the rune in `rune_item_unlock`
+(world DB):
+
+| Column | Meaning |
+|--------|---------|
+| `item_id` | the item whose use unlocks the rune |
+| `rune_id` | the rune to gate / unlock |
+
+Then set that item's `item_template.ScriptName = 'item_rune_unlock'`. The engine
+ships this generic `ItemScript`: on use it unlocks every rune mapped to the item
+(into `character_rune_unlock`), whispers the player, and **consumes one** of the
+item. Like the quest path, a rune referenced by **any** `rune_item_unlock` row
+becomes **gated** until unlocked; an unmapped rune stays available by class.
+
+Two practical notes:
+
+- The item needs at least one **ON_USE spell** (`spelltrigger = 0`) so the client
+  offers "Use" — reuse a harmless existing spell (the engine script suppresses it,
+  so it never actually casts). Restrict the item to the relevant class with
+  `AllowableClass` if the rune is class-specific.
+- Guard the `rune_item_unlock` INSERT exactly like the catalog inserts (the table
+  won't exist without the engine — conditional dynamic SQL targeting
+  `rune_item_unlock`). `character_rune_unlock` is engine-managed; don't write it.
+
+`mod-sod-mage`'s `sod_mage_regeneration_unlock.sql` is the worked example
+(Comprehension Charm + scrambled notes → deciphered notes → unlock).
+
+`rune_contract.version` (currently `2`: `rune_template`, `rune_quest_unlock`,
+`rune_item_unlock`) lets your SQL sanity-check compatibility.
 
 See also: [Architecture](architecture.md) · [Deploy & verify](deploy-and-verify.md)

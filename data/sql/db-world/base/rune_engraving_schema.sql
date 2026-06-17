@@ -26,9 +26,10 @@ CREATE TABLE IF NOT EXISTS `rune_template` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================================
--- Quest-unlock contract (created now, unused in v1). Content modules map a
--- rune to the quest(s) that unlock it; the engine will consume this on quest
--- completion when the gated-unlock path lands.
+-- Quest-unlock contract. Content modules map a rune to the quest(s) that
+-- unlock it; the engine consumes this on quest completion
+-- (OnPlayerCompleteQuest -> UnlockRunesForQuest). A rune referenced here is
+-- "gated": hidden at the engraver until the character unlocks it.
 -- =====================================================================
 CREATE TABLE IF NOT EXISTS `rune_quest_unlock` (
     `rune_id`  INT UNSIGNED NOT NULL,
@@ -37,7 +38,21 @@ CREATE TABLE IF NOT EXISTS `rune_quest_unlock` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================================
+-- Item-unlock contract (v2). The item analogue of rune_quest_unlock: map a
+-- rune to the item(s) that unlock it. The engine's `item_rune_unlock`
+-- ItemScript (bound via item_template.ScriptName) calls UnlockRunesForItem on
+-- use. A rune referenced here is "gated" exactly like a quest-gated one.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS `rune_item_unlock` (
+    `item_id` INT UNSIGNED NOT NULL,
+    `rune_id` INT UNSIGNED NOT NULL,
+    PRIMARY KEY (`item_id`, `rune_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================================
 -- Contract version: lets content modules sanity-check compatibility.
+--   v1: rune_template, rune_quest_unlock
+--   v2: + rune_item_unlock
 -- =====================================================================
 CREATE TABLE IF NOT EXISTS `rune_contract` (
     `version` INT UNSIGNED NOT NULL,
@@ -45,7 +60,7 @@ CREATE TABLE IF NOT EXISTS `rune_contract` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 DELETE FROM `rune_contract`;
-INSERT INTO `rune_contract` (`version`) VALUES (1);
+INSERT INTO `rune_contract` (`version`) VALUES (2);
 
 -- =====================================================================
 -- Rune Engraver NPC (entry 700000). Gossip-only, neutral, non-attackable.

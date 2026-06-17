@@ -20,6 +20,7 @@
 #include "DatabaseEnv.h"
 #include "Log.h"
 #include "Player.h"
+#include "QuestDef.h"
 #include <string>
 
 RuneEngravingMgr* RuneEngravingMgr::instance()
@@ -50,23 +51,27 @@ char const* RuneEngravingMgr::SlotName(uint8 slot)
 void RuneEngravingMgr::ApplyConfig()
 {
     _requiredSpell = sConfigMgr->GetOption<uint32>("RuneEngraving.RequiredSpell", 0);
+    _debugMenu = sConfigMgr->GetOption<bool>("RuneEngraving.DebugMenu", false);
 
-    // Per-slot unlock levels — SoD-phase defaults (Chest/Legs/Hands 25,
-    // Waist/Wrist/Feet 40, Head/Cloak 50, the rest 60), each tunable via
-    // "RuneEngraving.SlotMinLevel.<SlotName>".
+    // Per-slot unlock levels — defaults map each SoD engraving slot to the START
+    // of its phase's level band (P1=1 Chest/Legs/Hands, P2=26 Waist/Feet,
+    // P3=41 Head/Wrist, P4=51 Cloak/Ring). SoD itself gated slots by the server
+    // phase + rune discovery, not character level, so these approximate that on a
+    // single, non-phased realm. Neck/Shoulder aren't SoD slots (left generic at
+    // 60). Each tunable via "RuneEngraving.SlotMinLevel.<SlotName>".
     static uint32 const defaults[RUNE_SLOT_MAX] =
     {
-        50, // Head
-        60, // Neck
-        60, // Shoulder
-        50, // Cloak
-        25, // Chest
-        40, // Wrist
-        25, // Hands
-        40, // Waist
-        25, // Legs
-        40, // Feet
-        60, // Ring
+        41, // Head      (P3)
+        60, // Neck      (not a SoD slot; generic)
+        60, // Shoulder  (not a SoD slot; generic)
+        51, // Cloak     (P4)
+        1,  // Chest     (P1)
+        41, // Wrist     (P3)
+        1,  // Hands     (P1)
+        26, // Waist     (P2)
+        1,  // Legs      (P1)
+        26, // Feet      (P2)
+        51, // Ring      (P4)
     };
 
     for (uint8 slot = 0; slot < RUNE_SLOT_MAX; ++slot)
@@ -91,6 +96,7 @@ void RuneEngravingMgr::LoadCatalog()
     std::lock_guard<std::mutex> guard(_catalogMutex);
     _catalog.clear();
     _questUnlocks.clear();
+    _itemUnlocks.clear();
     _gatedRunes.clear();
 
     if (QueryResult result = WorldDatabase.Query(
@@ -126,7 +132,22 @@ void RuneEngravingMgr::LoadCatalog()
         } while (qr->NextRow());
     }
 
-    LOG_INFO("module", "RuneEngraving: loaded {} rune(s) ({} gated behind quests).",
+    // Item-unlock mappings: same gating, but unlocked by using an item bound to
+    // the `item_rune_unlock` ItemScript (see UnlockRunesForItem).
+    if (QueryResult ir = WorldDatabase.Query(
+            "SELECT `item_id`, `rune_id` FROM `rune_item_unlock`"))
+    {
+        do
+        {
+            Field* f = ir->Fetch();
+            uint32 itemId = f[0].Get<uint32>();
+            uint32 runeId = f[1].Get<uint32>();
+            _itemUnlocks[itemId].push_back(runeId);
+            _gatedRunes.insert(runeId);
+        } while (ir->NextRow());
+    }
+
+    LOG_INFO("module", "RuneEngraving: loaded {} rune(s) ({} gated behind quests/items).",
         _catalog.size(), _gatedRunes.size());
 }
 
@@ -460,6 +481,31 @@ std::vector<std::string> RuneEngravingMgr::UnlockRunesForQuest(Player* player, u
     return unlockedNames;
 }
 
+std::vector<std::string> RuneEngravingMgr::UnlockRunesForItem(Player* player, uint32 itemId)
+{
+    std::vector<std::string> unlockedNames;
+    if (!player)
+        return unlockedNames;
+
+    // Phase 1 (catalog lock): which runes this item unlocks.
+    std::vector<uint32> runeIds;
+    {
+        std::lock_guard<std::mutex> guard(_catalogMutex);
+        auto it = _itemUnlocks.find(itemId);
+        if (it == _itemUnlocks.end())
+            return unlockedNames;
+        runeIds = it->second;
+    }
+
+    // Phase 2: unlock each (UnlockRune / GetRune take their own locks).
+    for (uint32 runeId : runeIds)
+        if (UnlockRune(player, runeId))
+            if (RuneTemplate const* rune = GetRune(runeId))
+                unlockedNames.push_back(rune->Name);
+
+    return unlockedNames;
+}
+
 std::vector<uint32> RuneEngravingMgr::GetUnlockedRunes(ObjectGuid guid) const
 {
     std::vector<uint32> out;
@@ -468,4 +514,93 @@ std::vector<uint32> RuneEngravingMgr::GetUnlockedRunes(ObjectGuid guid) const
     if (it != _unlocked.end())
         out.assign(it->second.begin(), it->second.end());
     return out;
+}
+
+void RuneEngravingMgr::ResetQuest(Player* player, uint32 questId)
+{
+    // Mirror the core's `.quest remove`: drop it from the active log, then clear
+    // its active/rewarded state so it can be taken and completed again.
+    for (uint8 slot = 0; slot < MAX_QUEST_LOG_SIZE; ++slot)
+    {
+        if (player->GetQuestSlotQuestId(slot) == questId)
+        {
+            player->SetQuestSlot(slot, 0);
+            player->TakeQuestSourceItem(questId, false);
+        }
+    }
+
+    player->RemoveRewardedQuest(questId);
+    player->RemoveActiveQuest(questId, false);
+}
+
+RuneResetSummary RuneEngravingMgr::ResetGatedProgress(Player* player)
+{
+    RuneResetSummary summary;
+    if (!player)
+        return summary;
+
+    // Snapshot the quest/item -> rune mappings under the catalog lock, then act
+    // without it held (the state-side calls below take _stateMutex / their own
+    // locks).
+    std::vector<std::pair<uint32, std::vector<uint32>>> questMaps, itemMaps;
+    {
+        std::lock_guard<std::mutex> guard(_catalogMutex);
+        questMaps.assign(_questUnlocks.begin(), _questUnlocks.end());
+        itemMaps.assign(_itemUnlocks.begin(), _itemUnlocks.end());
+    }
+
+    std::unordered_set<uint32> gatedRunes;
+    for (auto const& [questId, runeIds] : questMaps)
+    {
+        bool hadProgress = player->GetQuestRewardStatus(questId) ||
+                           player->GetQuestStatus(questId) != QUEST_STATUS_NONE;
+        ResetQuest(player, questId);
+        if (hadProgress)
+            ++summary.QuestsReset;
+
+        for (uint32 runeId : runeIds)
+            gatedRunes.insert(runeId);
+    }
+    for (auto const& [itemId, runeIds] : itemMaps)
+        for (uint32 runeId : runeIds)
+            gatedRunes.insert(runeId);
+
+    // Lock each gated rune, clearing any engraving of it first so we never leave an
+    // engraved-but-locked rune (which would still grant its spell on next login).
+    std::unordered_set<uint32> lockedRunes;
+    for (uint32 runeId : gatedRunes)
+    {
+        for (uint8 slot = 0; slot < RUNE_SLOT_MAX; ++slot)
+            if (GetEngraved(player->GetGUID(), slot) == runeId)
+                RemoveRune(player, slot);
+
+        if (LockRune(player, runeId))
+        {
+            lockedRunes.insert(runeId);
+            ++summary.RunesLocked;
+        }
+    }
+
+    // For an item-unlocked rune that was actually relocked, give back one of its
+    // unlock item so the discovery can be re-run (e.g. the deciphered spell notes
+    // the player consumed). The engine only knows the final unlock item; earlier
+    // chain items are content's own (re-obtained from their vendor/drops).
+    for (auto const& [itemId, runeIds] : itemMaps)
+    {
+        bool relocked = false;
+        for (uint32 runeId : runeIds)
+            if (lockedRunes.count(runeId))
+            {
+                relocked = true;
+                break;
+            }
+
+        if (relocked)
+        {
+            player->AddItem(itemId, 1);
+            ++summary.ItemsRestored;
+        }
+    }
+
+    return summary;
 }

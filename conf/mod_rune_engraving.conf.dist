@@ -25,6 +25,21 @@
 RuneEngraving.Enable = 1
 
 #
+#    RuneEngraving.DebugMenu
+#        Description: Adds a "[Debug] Reset my runes & quests" option to the Rune
+#                     Engraver NPC. It reverts the talking character's gated-rune
+#                     progress: resets every quest mapped in rune_quest_unlock,
+#                     locks every quest- and item-unlocked rune, clears any
+#                     engraving of a now-locked rune, and hands back the unlock item
+#                     for each relocked item-gated rune (e.g. deciphered notes) so
+#                     the discovery can be re-run. For testing; leave off on live.
+#        Default:     0 - (hidden)
+#                     1 - (shown)
+#
+
+RuneEngraving.DebugMenu = 0
+
+#
 #    RuneEngraving.RequiredSpell
 #        Description: Spell ID the character must have learned before they can
 #                     engrave anything (the Season of Discovery "learn Engraving
@@ -38,25 +53,33 @@ RuneEngraving.RequiredSpell = 0
 #
 #    RuneEngraving.SlotMinLevel.*
 #        Description: Minimum character level to engrave into each slot, so slots
-#                     unlock as the character levels (SoD-style phase gating). One
-#                     key per slot; a character below the level sees the slot as
-#                     "(unlocks at N)" and cannot engrave it. Set to 1 to make a
-#                     slot always available.
-#        Default:     SoD-phase approximations (tune to taste):
-#                       Chest/Legs/Hands = 25
-#                       Waist/Wrist/Feet = 40
-#                       Head/Cloak       = 50
-#                       Neck/Shoulder/Ring = 60
+#                     unlock as the character levels. One key per slot; a character
+#                     below the level sees the slot as "(unlocks at N)" and cannot
+#                     engrave it. Set to 1 to make a slot always available.
+#
+#                     Defaults map each SoD engraving slot to the START of its
+#                     phase's level band (phase caps were 25/40/50/60):
+#                       Chest/Legs/Hands   = 1   (Phase 1)
+#                       Waist/Feet         = 26  (Phase 2)
+#                       Head/Wrist         = 41  (Phase 3)
+#                       Cloak/Ring         = 51  (Phase 4)
+#                       Neck/Shoulder      = 60  (not SoD slots; generic)
+#
+#                     Note: SoD itself gated slots by the server phase + rune
+#                     discovery, NOT character level (level-25 twinks in later
+#                     phases used higher-phase runes). On a single, non-phased
+#                     realm these levels approximate that progression; raise them
+#                     toward the phase caps, or set 1 to drop level gating.
 #
 
-RuneEngraving.SlotMinLevel.Head     = 50
+RuneEngraving.SlotMinLevel.Head     = 41
 RuneEngraving.SlotMinLevel.Neck     = 60
 RuneEngraving.SlotMinLevel.Shoulder = 60
-RuneEngraving.SlotMinLevel.Cloak    = 50
-RuneEngraving.SlotMinLevel.Chest    = 25
-RuneEngraving.SlotMinLevel.Wrist    = 40
-RuneEngraving.SlotMinLevel.Hands    = 25
-RuneEngraving.SlotMinLevel.Waist    = 40
-RuneEngraving.SlotMinLevel.Legs     = 25
-RuneEngraving.SlotMinLevel.Feet     = 40
-RuneEngraving.SlotMinLevel.Ring     = 60
+RuneEngraving.SlotMinLevel.Cloak    = 51
+RuneEngraving.SlotMinLevel.Chest    = 1
+RuneEngraving.SlotMinLevel.Wrist    = 41
+RuneEngraving.SlotMinLevel.Hands    = 1
+RuneEngraving.SlotMinLevel.Waist    = 26
+RuneEngraving.SlotMinLevel.Legs     = 1
+RuneEngraving.SlotMinLevel.Feet     = 26
+RuneEngraving.SlotMinLevel.Ring     = 51

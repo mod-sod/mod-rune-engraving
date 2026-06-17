@@ -53,8 +53,11 @@ A rune is **available by class** by default. A rune mapped in `rune_quest_unlock
 becomes **gated**: it's hidden at the engraver and unengravable until the character
 unlocks it. `OnPlayerCompleteQuest` looks up the completed quest in
 `rune_quest_unlock` and records the unlock per-character in `character_rune_unlock`
-(loaded on login alongside engraved runes). Gating is per-rune and opt-in — a rune
-with no quest mapping is never gated. See [Integrating content](integrating-content.md).
+(loaded on login alongside engraved runes). A rune can also be gated behind an
+**item**: `rune_item_unlock` maps an item to rune(s), and the engine's generic
+`item_rune_unlock` `ItemScript` unlocks them (and consumes the item) on use.
+Either mapping marks the rune gated; gating is per-rune and opt-in — a rune with no
+mapping is never gated. See [Integrating content](integrating-content.md).
 
 The catalog-side gating data (`rune_quest_unlock`) and the per-character unlock
 state live under the two different locks, so the engrave list is computed in two
@@ -72,8 +75,11 @@ Discovery rules, then returns an **`EngraveResult`** so callers (the NPC and the
   the character must have learned that ability first (`Player::HasSpell`). The
   engine only enforces it; granting the ability is content's job.
 - **Level-gated slots** — each slot has a minimum level
-  (`RuneEngraving.SlotMinLevel.<SlotName>`, SoD-phase defaults), so slots unlock as
-  the character levels. The NPC shows locked slots as "(unlocks at N)".
+  (`RuneEngraving.SlotMinLevel.<SlotName>`), so slots unlock as the character
+  levels. Defaults map each SoD slot to the start of its phase band (P1=1, P2=26,
+  P3=41, P4=51); SoD's real gate was the server phase + rune discovery, not
+  character level, so this approximates it on a non-phased realm. The NPC shows
+  locked slots as "(unlocks at N)".
 - **No duplicate rune** — the same rune can't be engraved in two slots (SoD runes
   are single-slot; this guards the engine's more permissive multi-slot `slot_mask`).
 

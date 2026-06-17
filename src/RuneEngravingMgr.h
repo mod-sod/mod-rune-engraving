@@ -115,6 +115,14 @@ enum class EngraveResult
     DuplicateRune,   // same rune already engraved in another slot
 };
 
+// Result of a debug reset: how much gated progress was reverted for a character.
+struct RuneResetSummary
+{
+    uint32 QuestsReset = 0;
+    uint32 RunesLocked = 0;
+    uint32 ItemsRestored = 0; // unlock items handed back (e.g. deciphered notes)
+};
+
 // Class-agnostic rune engraving engine. Loads the catalog from the world DB at
 // startup and tracks each online character's engraved runes, granting the
 // associated spells as temporary (so they vanish on logout and are reapplied on
@@ -129,6 +137,7 @@ public:
     void ApplyConfig();                 // read engraving-rule tunables from config
     bool IsEnabled() const { return _enabled; }
     void SetEnabled(bool enabled) { _enabled = enabled; }
+    bool DebugMenu() const { return _debugMenu; }
     uint32 CatalogSize() const;
 
     // Catalog access
@@ -157,7 +166,18 @@ public:
     bool LockRune(Player* player, uint32 runeId);    // true if it was unlocked
     // Unlock every rune mapped to `questId`; returns the names newly unlocked.
     std::vector<std::string> UnlockRunesForQuest(Player* player, uint32 questId);
+    // Unlock every rune mapped to `itemId` (rune_item_unlock); same return.
+    // Driven by the `item_rune_unlock` ItemScript when such an item is used.
+    std::vector<std::string> UnlockRunesForItem(Player* player, uint32 itemId);
     std::vector<uint32> GetUnlockedRunes(ObjectGuid guid) const;
+
+    // Debug/testing: revert a character's gated-rune progress — reset every quest
+    // mapped in rune_quest_unlock, lock every quest- AND item-unlocked rune, clear
+    // any engraving of a now-locked rune (so no engraved-but-locked state lingers),
+    // and hand back the unlock item for each relocked item-gated rune (e.g. the
+    // consumed deciphered notes) so the discovery can be re-run. Lets the engraver's
+    // debug menu put a tester back to the pre-discovery state.
+    RuneResetSummary ResetGatedProgress(Player* player);
 
     // Purge a character's rune rows. Called when a character is deleted so a
     // reused GUID can never inherit a previous (possibly different-class)
@@ -178,12 +198,18 @@ private:
     // swap/removal doesn't strip a spell another slot still provides.
     bool SpellGrantedByOtherSlot(ObjectGuid guid, uint32 spellId, uint8 exceptSlot) const;
 
+    // Reset one quest's status on a character (mirrors the core's `.quest remove`):
+    // clear it from the log, and drop its active/rewarded state.
+    void ResetQuest(Player* player, uint32 questId);
+
     bool _enabled = true;
+    bool _debugMenu = false;                         // expose the engraver debug menu
     uint32 _requiredSpell = 0;                       // learned-Engraving gate; 0 = off
     std::array<uint32, RUNE_SLOT_MAX> _slotMinLevel{}; // per-slot unlock level (config)
     std::unordered_map<uint32, RuneTemplate> _catalog;                          // guarded by _catalogMutex
     std::unordered_map<uint32, std::vector<uint32>> _questUnlocks;              // questId -> runeIds; _catalogMutex
-    std::unordered_set<uint32> _gatedRunes;                                     // runes referenced by any quest; _catalogMutex
+    std::unordered_map<uint32, std::vector<uint32>> _itemUnlocks;              // itemId -> runeIds; _catalogMutex
+    std::unordered_set<uint32> _gatedRunes;                                     // runes gated behind a quest/item; _catalogMutex
     std::unordered_map<ObjectGuid, std::array<uint32, RUNE_SLOT_MAX>> _engraved; // guarded by _stateMutex
     std::unordered_map<ObjectGuid, std::unordered_set<uint32>> _unlocked;        // guid -> unlocked runeIds; _stateMutex
 

@@ -34,6 +34,7 @@ enum RuneGossipSender
     SENDER_RUNE      = 2, // action = rune_id       -> engrave it in the selected slot
     SENDER_UNENGRAVE = 3, // action = RuneSlot      -> clear that slot
     SENDER_BACK      = 4, // action = 0             -> back to the slot list
+    SENDER_RESET     = 5, // action = 0             -> debug: reset quests + unlocks
 };
 
 // The slot a player is currently browsing, so a SENDER_RUNE pick knows where to
@@ -125,6 +126,20 @@ public:
                         RuneEngravingMgr::SlotName(uint8(action)));
                 ShowRuneMenu(player, creature, uint8(action));
                 break;
+            case SENDER_RESET:
+            {
+                // Guard against a stale menu if the debug flag was turned off.
+                if (sRuneEngravingMgr->DebugMenu())
+                {
+                    RuneResetSummary summary = sRuneEngravingMgr->ResetGatedProgress(player);
+                    ChatHandler(player->GetSession()).PSendSysMessage(
+                        "|cFFFFFF00[Rune Engraver]|r Debug reset: locked {} rune(s), "
+                        "reset {} quest(s), restored {} unlock item(s).",
+                        summary.RunesLocked, summary.QuestsReset, summary.ItemsRestored);
+                }
+                ShowSlotMenu(player, creature);
+                break;
+            }
             case SENDER_BACK:
             default:
                 ShowSlotMenu(player, creature);
@@ -172,6 +187,12 @@ private:
 
             AddGossipItemFor(player, GOSSIP_ICON_TALK, text, SENDER_SLOT, slot);
         }
+
+        // Debug aid (off by default): revert quest + rune-unlock progress so the
+        // discovery flow can be re-tested without GM commands.
+        if (sRuneEngravingMgr->DebugMenu())
+            AddGossipItemFor(player, GOSSIP_ICON_INTERACT_1,
+                "|cFFFF0000[Debug] Reset my runes & quests|r", SENDER_RESET, 0);
 
         SendGossipMenuFor(player, DEFAULT_GOSSIP_MESSAGE, creature->GetGUID());
     }
