@@ -57,6 +57,15 @@ public:
             return true;
         }
 
+        if (!sRuneEngravingMgr->MeetsPrereq(player))
+        {
+            ChatHandler(player->GetSession()).SendSysMessage(
+                "|cFFFF0000[Rune Engraver]|r You must learn Engraving before you can "
+                "engrave runes.");
+            player->PlayerTalkClass->SendCloseGossip();
+            return true;
+        }
+
         ShowSlotMenu(player, creature);
         return true;
     }
@@ -74,16 +83,38 @@ public:
             case SENDER_RUNE:
             {
                 uint8 slot = GetBrowsingSlot(player->GetGUID());
-                if (sRuneEngravingMgr->Engrave(player, slot, action))
+                ChatHandler handler(player->GetSession());
+                switch (sRuneEngravingMgr->Engrave(player, slot, action))
                 {
-                    RuneTemplate const* rune = sRuneEngravingMgr->GetRune(action);
-                    ChatHandler(player->GetSession()).PSendSysMessage(
-                        "|cFF00FF00[Rune Engraver]|r Engraved |cFFFFD700{}|r in your {} slot.",
-                        rune ? rune->Name.c_str() : "rune", RuneEngravingMgr::SlotName(slot));
+                    case EngraveResult::Success:
+                    {
+                        RuneTemplate const* rune = sRuneEngravingMgr->GetRune(action);
+                        handler.PSendSysMessage(
+                            "|cFF00FF00[Rune Engraver]|r Engraved |cFFFFD700{}|r in your {} slot.",
+                            rune ? rune->Name.c_str() : "rune", RuneEngravingMgr::SlotName(slot));
+                        break;
+                    }
+                    case EngraveResult::PrereqMissing:
+                        handler.SendSysMessage("|cFFFF0000[Rune Engraver]|r You must learn Engraving first.");
+                        break;
+                    case EngraveResult::SlotLevelTooLow:
+                        handler.PSendSysMessage(
+                            "|cFFFF0000[Rune Engraver]|r Your {} slot unlocks at level {}.",
+                            RuneEngravingMgr::SlotName(slot), sRuneEngravingMgr->SlotMinLevel(slot));
+                        break;
+                    case EngraveResult::DuplicateRune:
+                        handler.SendSysMessage("|cFFFF0000[Rune Engraver]|r That rune is already engraved in another slot.");
+                        break;
+                    case EngraveResult::Locked:
+                        handler.SendSysMessage("|cFFFF0000[Rune Engraver]|r You haven't discovered that rune yet.");
+                        break;
+                    case EngraveResult::WrongClass:
+                        handler.SendSysMessage("|cFFFF0000[Rune Engraver]|r That rune isn't for your class.");
+                        break;
+                    default:
+                        handler.SendSysMessage("|cFFFF0000[Rune Engraver]|r You cannot engrave that rune there.");
+                        break;
                 }
-                else
-                    ChatHandler(player->GetSession()).SendSysMessage(
-                        "|cFFFF0000[Rune Engraver]|r You cannot engrave that rune there.");
                 ShowRuneMenu(player, creature, slot);
                 break;
             }
@@ -126,10 +157,18 @@ private:
             std::string text = "Slot: ";
             text += RuneEngravingMgr::SlotName(slot);
 
-            uint32 runeId = sRuneEngravingMgr->GetEngraved(player->GetGUID(), slot);
-            if (runeId)
-                if (RuneTemplate const* rune = sRuneEngravingMgr->GetRune(runeId))
-                    text += " |cFF00FF00[" + rune->Name + "]|r";
+            uint32 minLevel = sRuneEngravingMgr->SlotMinLevel(slot);
+            if (player->GetLevel() < minLevel)
+            {
+                text += " |cFF808080(unlocks at " + std::to_string(minLevel) + ")|r";
+            }
+            else
+            {
+                uint32 runeId = sRuneEngravingMgr->GetEngraved(player->GetGUID(), slot);
+                if (runeId)
+                    if (RuneTemplate const* rune = sRuneEngravingMgr->GetRune(runeId))
+                        text += " |cFF00FF00[" + rune->Name + "]|r";
+            }
 
             AddGossipItemFor(player, GOSSIP_ICON_TALK, text, SENDER_SLOT, slot);
         }
@@ -145,6 +184,18 @@ private:
         if (!RuneEngravingMgr::IsValidSlot(slot))
         {
             ShowSlotMenu(player, creature);
+            return;
+        }
+
+        // Level-gated slot: show the unlock notice instead of the rune list.
+        uint32 minLevel = sRuneEngravingMgr->SlotMinLevel(slot);
+        if (player->GetLevel() < minLevel)
+        {
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT,
+                "|cFF808080This slot unlocks at level " + std::to_string(minLevel) + ".|r",
+                SENDER_BACK, 0);
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "<- Back to slots", SENDER_BACK, 0);
+            SendGossipMenuFor(player, DEFAULT_GOSSIP_MESSAGE, creature->GetGUID());
             return;
         }
 

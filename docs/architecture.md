@@ -62,6 +62,26 @@ phases (collect class/slot-legal candidates + their gated flag under the catalog
 lock, then filter by the character's unlock set under the state lock) to keep the
 one-way lock ordering.
 
+## Engraving rules (SoD)
+
+Beyond class/slot legality and unlocks, `Engrave` enforces three Season of
+Discovery rules, then returns an **`EngraveResult`** so callers (the NPC and the
+`.rune` command) can give a specific reason rather than a generic failure:
+
+- **Learned-Engraving prerequisite** — if `RuneEngraving.RequiredSpell` is set,
+  the character must have learned that ability first (`Player::HasSpell`). The
+  engine only enforces it; granting the ability is content's job.
+- **Level-gated slots** — each slot has a minimum level
+  (`RuneEngraving.SlotMinLevel.<SlotName>`, SoD-phase defaults), so slots unlock as
+  the character levels. The NPC shows locked slots as "(unlocks at N)".
+- **No duplicate rune** — the same rune can't be engraved in two slots (SoD runes
+  are single-slot; this guards the engine's more permissive multi-slot `slot_mask`).
+
+These are **server config + engine logic only — no schema or contract change**, so
+the catalog and content modules are untouched. The prereq spell id and per-slot
+levels are read by `ApplyConfig()` on `OnAfterConfigLoad`. The pure decision bits
+(`RuneRules::SlotUnlocked`, `RuneRules::IsDuplicateRune`) are unit-tested.
+
 ## Self-healing edge cases
 
 - **GUID reuse.** AzerothCore can reseed the character-GUID counter after a restart,

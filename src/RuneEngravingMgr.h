@@ -67,6 +67,26 @@ namespace RuneRules
     {
         return classMask == 0 || (classMask & (1u << (classId - 1))) != 0;
     }
+
+    // A slot is unlocked once the character reaches its minimum level (SoD gates
+    // engraving slots by level/phase). minLevel 0/1 == always available.
+    inline bool SlotUnlocked(uint8 level, uint32 minLevel)
+    {
+        return level >= minLevel;
+    }
+
+    // Whether `runeId` is already engraved in some slot other than `exceptSlot`
+    // (SoD runes are single-slot; this guards a rune being engraved twice).
+    inline bool IsDuplicateRune(std::array<uint32, RUNE_SLOT_MAX> const& slots,
+                                uint32 runeId, uint8 exceptSlot)
+    {
+        if (runeId == 0)
+            return false; // an empty slot ("no rune") is never a duplicate
+        for (uint8 s = 0; s < RUNE_SLOT_MAX; ++s)
+            if (s != exceptSlot && slots[s] == runeId)
+                return true;
+        return false;
+    }
 }
 
 // One catalog entry from `rune_template`. Content modules own these rows; the
@@ -81,6 +101,20 @@ struct RuneTemplate
     std::string Description;
 };
 
+// Outcome of an Engrave attempt, so callers (NPC, .rune command) can give the
+// player a specific reason rather than a generic failure.
+enum class EngraveResult
+{
+    Success,
+    UnknownRune,     // no such rune / disabled
+    WrongClass,      // rune not legal for the character's class
+    WrongSlot,       // rune can't go in that slot
+    Locked,          // gated rune the character hasn't unlocked (quest)
+    PrereqMissing,   // character hasn't learned Engraving (RequiredSpell)
+    SlotLevelTooLow, // slot not yet unlocked at the character's level
+    DuplicateRune,   // same rune already engraved in another slot
+};
+
 // Class-agnostic rune engraving engine. Loads the catalog from the world DB at
 // startup and tracks each online character's engraved runes, granting the
 // associated spells as temporary (so they vanish on logout and are reapplied on
@@ -92,6 +126,7 @@ public:
 
     // Lifecycle
     void LoadCatalog();
+    void ApplyConfig();                 // read engraving-rule tunables from config
     bool IsEnabled() const { return _enabled; }
     void SetEnabled(bool enabled) { _enabled = enabled; }
     uint32 CatalogSize() const;
@@ -105,9 +140,14 @@ public:
     void LoadPlayer(Player* player);    // on login: read character_rune(+_unlock)
     void UnloadPlayer(ObjectGuid guid); // on logout: drop cached state
     void ApplyAll(Player* player);      // grant the spells for all engraved slots
-    bool Engrave(Player* player, uint8 slot, uint32 runeId);
+    EngraveResult Engrave(Player* player, uint8 slot, uint32 runeId);
     bool RemoveRune(Player* player, uint8 slot);
     uint32 GetEngraved(ObjectGuid guid, uint8 slot) const;
+
+    // Engraving rules (SoD): the learned-Engraving prerequisite and per-slot
+    // unlock levels, both read from config by ApplyConfig.
+    uint32 SlotMinLevel(uint8 slot) const;
+    bool MeetsPrereq(Player* player) const;
 
     // Unlocks. A rune is "gated" if any rune_quest_unlock row references it; a
     // gated rune is only engravable once the character has unlocked it. Runes
@@ -139,6 +179,8 @@ private:
     bool SpellGrantedByOtherSlot(ObjectGuid guid, uint32 spellId, uint8 exceptSlot) const;
 
     bool _enabled = true;
+    uint32 _requiredSpell = 0;                       // learned-Engraving gate; 0 = off
+    std::array<uint32, RUNE_SLOT_MAX> _slotMinLevel{}; // per-slot unlock level (config)
     std::unordered_map<uint32, RuneTemplate> _catalog;                          // guarded by _catalogMutex
     std::unordered_map<uint32, std::vector<uint32>> _questUnlocks;              // questId -> runeIds; _catalogMutex
     std::unordered_set<uint32> _gatedRunes;                                     // runes referenced by any quest; _catalogMutex

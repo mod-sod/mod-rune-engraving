@@ -16,9 +16,11 @@
  */
 
 #include "RuneEngravingMgr.h"
+#include "Config.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
 #include "Player.h"
+#include <string>
 
 RuneEngravingMgr* RuneEngravingMgr::instance()
 {
@@ -43,6 +45,45 @@ char const* RuneEngravingMgr::SlotName(uint8 slot)
         case RUNE_SLOT_RING:     return "Ring";
         default:                 return "Unknown";
     }
+}
+
+void RuneEngravingMgr::ApplyConfig()
+{
+    _requiredSpell = sConfigMgr->GetOption<uint32>("RuneEngraving.RequiredSpell", 0);
+
+    // Per-slot unlock levels — SoD-phase defaults (Chest/Legs/Hands 25,
+    // Waist/Wrist/Feet 40, Head/Cloak 50, the rest 60), each tunable via
+    // "RuneEngraving.SlotMinLevel.<SlotName>".
+    static uint32 const defaults[RUNE_SLOT_MAX] =
+    {
+        50, // Head
+        60, // Neck
+        60, // Shoulder
+        50, // Cloak
+        25, // Chest
+        40, // Wrist
+        25, // Hands
+        40, // Waist
+        25, // Legs
+        40, // Feet
+        60, // Ring
+    };
+
+    for (uint8 slot = 0; slot < RUNE_SLOT_MAX; ++slot)
+        _slotMinLevel[slot] = sConfigMgr->GetOption<uint32>(
+            std::string("RuneEngraving.SlotMinLevel.") + SlotName(slot), defaults[slot]);
+}
+
+uint32 RuneEngravingMgr::SlotMinLevel(uint8 slot) const
+{
+    return IsValidSlot(slot) ? _slotMinLevel[slot] : 0;
+}
+
+bool RuneEngravingMgr::MeetsPrereq(Player* player) const
+{
+    if (!player)
+        return false;
+    return _requiredSpell == 0 || player->HasSpell(_requiredSpell);
 }
 
 void RuneEngravingMgr::LoadCatalog()
@@ -256,16 +297,20 @@ bool RuneEngravingMgr::SpellGrantedByOtherSlot(ObjectGuid guid, uint32 spellId, 
     return false;
 }
 
-bool RuneEngravingMgr::Engrave(Player* player, uint8 slot, uint32 runeId)
+EngraveResult RuneEngravingMgr::Engrave(Player* player, uint8 slot, uint32 runeId)
 {
     if (!player || !IsValidSlot(slot))
-        return false;
+        return EngraveResult::WrongSlot;
 
     std::lock_guard<std::mutex> guard(_stateMutex);
 
     RuneTemplate const* rune = GetRune(runeId);
-    if (!rune || !RuneFitsSlot(*rune, slot) || !RuneAllowedForClass(player, *rune))
-        return false;
+    if (!rune)
+        return EngraveResult::UnknownRune;
+    if (!RuneFitsSlot(*rune, slot))
+        return EngraveResult::WrongSlot;
+    if (!RuneAllowedForClass(player, *rune))
+        return EngraveResult::WrongClass;
 
     ObjectGuid guid = player->GetGUID();
 
@@ -275,10 +320,19 @@ bool RuneEngravingMgr::Engrave(Player* player, uint8 slot, uint32 runeId)
     {
         auto u = _unlocked.find(guid);
         if (u == _unlocked.end() || u->second.find(runeId) == u->second.end())
-            return false;
+            return EngraveResult::Locked;
     }
 
+    // SoD rules: must have learned Engraving, the slot must be unlocked at this
+    // level, and the same rune can't be engraved in two slots.
+    if (!MeetsPrereq(player))
+        return EngraveResult::PrereqMissing;
+    if (!RuneRules::SlotUnlocked(player->GetLevel(), _slotMinLevel[slot]))
+        return EngraveResult::SlotLevelTooLow;
+
     std::array<uint32, RUNE_SLOT_MAX>& slots = _engraved[guid];
+    if (RuneRules::IsDuplicateRune(slots, runeId, slot))
+        return EngraveResult::DuplicateRune;
 
     // Strip the spell from the rune currently in this slot, unless another slot
     // still grants the same spell.
@@ -296,7 +350,7 @@ bool RuneEngravingMgr::Engrave(Player* player, uint8 slot, uint32 runeId)
     if (rune->SpellId)
         player->learnSpell(rune->SpellId, /*temporary*/ true);
 
-    return true;
+    return EngraveResult::Success;
 }
 
 bool RuneEngravingMgr::RemoveRune(Player* player, uint8 slot)

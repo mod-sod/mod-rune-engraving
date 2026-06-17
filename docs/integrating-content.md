@@ -113,6 +113,20 @@ apply the engine's base SQL first, then your module's rune SQL. If both are
 auto-imported and your rune SQL happens to run first, it harmlessly no-ops once
 (the guard) and lands on the next apply — it's idempotent, so just re-run it.
 
+## Engraving rules are server-side
+
+The SoD engraving rules — per-slot **level unlocks**, the **learn-Engraving
+prerequisite**, and the **no-duplicate-rune** guard — are server config + engine
+logic. They need **no schema change** and aren't configured per rune: your job is
+just to supply runes (and optionally quest-gate them). Two tips for SoD content:
+
+- Keep each rune **single-slot** (one bit in `slot_mask`), as SoD runes are. A
+  multi-slot rune still can't be engraved twice (the guard), but single-slot keeps
+  the model clean.
+- Slot unlock levels (`RuneEngraving.SlotMinLevel.*`) and the required ability
+  (`RuneEngraving.RequiredSpell`) are admin-tuned in the engine's `.conf` — they're
+  server policy, not something your runes set.
+
 ## Gating runes behind quests
 
 By default a rune is **available by class** the moment its catalog row exists.

@@ -25,6 +25,9 @@ The engine works end-to-end:
 - **Unlocks** — runes are available by class by default, or can be **gated behind
   quests**: a rune mapped in `rune_quest_unlock` is hidden until the character
   completes the quest that unlocks it (per-rune, opt-in).
+- **SoD engraving rules** — slots **unlock by level** (per-slot config, SoD-phase
+  defaults), an optional **learn-Engraving prerequisite** can gate the system, and
+  the **same rune can't be engraved twice**.
 - **Robustness** — class-gated rune lists, self-healing on GUID reuse, and cleanup
   on character deletion.
 

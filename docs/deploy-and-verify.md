@@ -72,6 +72,7 @@ GM command for driving the engine without the NPC:
 
 ```
 .rune list                 # show this character's engraved runes
+.rune slots                # per-slot unlock level + open/locked for the target
 .rune engrave <slot> <id>  # engrave rune <id> in <slot> (e.g. 4 = Chest)
 .rune clear <slot>         # clear a slot
 .rune unlock <id>          # force-unlock a gated rune (testing)
@@ -83,5 +84,12 @@ GM command for driving the engine without the NPC:
 To verify **quest gating**: map a rune in `rune_quest_unlock`, `.rune reload`,
 confirm it's hidden at the engraver, complete the quest (you'll get a whisper),
 then confirm it now lists. `.rune unlock`/`lock` shortcut the quest for testing.
+
+To verify the **SoD engraving rules** (config-only — edit `mod_rune_engraving.conf`,
+restart): on a character below a slot's `RuneEngraving.SlotMinLevel`, the engraver
+shows "(unlocks at N)" and refuses (`.rune slots` confirms locked); ding past it and
+it works. Set `RuneEngraving.RequiredSpell` to an ability the character lacks → the
+NPC says "learn Engraving first"; `.learn` it → works. Engrave a rune, then try the
+same rune in another legal slot → "already engraved".
 
 See [Gotchas](gotchas.md) for what each failure mode looks like.

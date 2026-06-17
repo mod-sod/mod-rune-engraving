@@ -23,3 +23,40 @@
 #
 
 RuneEngraving.Enable = 1
+
+#
+#    RuneEngraving.RequiredSpell
+#        Description: Spell ID the character must have learned before they can
+#                     engrave anything (the Season of Discovery "learn Engraving
+#                     first" prerequisite). The engine only enforces it; granting
+#                     the ability is content's job (a quest reward, GM .learn, etc).
+#        Default:     0 - (no prerequisite)
+#
+
+RuneEngraving.RequiredSpell = 0
+
+#
+#    RuneEngraving.SlotMinLevel.*
+#        Description: Minimum character level to engrave into each slot, so slots
+#                     unlock as the character levels (SoD-style phase gating). One
+#                     key per slot; a character below the level sees the slot as
+#                     "(unlocks at N)" and cannot engrave it. Set to 1 to make a
+#                     slot always available.
+#        Default:     SoD-phase approximations (tune to taste):
+#                       Chest/Legs/Hands = 25
+#                       Waist/Wrist/Feet = 40
+#                       Head/Cloak       = 50
+#                       Neck/Shoulder/Ring = 60
+#
+
+RuneEngraving.SlotMinLevel.Head     = 50
+RuneEngraving.SlotMinLevel.Neck     = 60
+RuneEngraving.SlotMinLevel.Shoulder = 60
+RuneEngraving.SlotMinLevel.Cloak    = 50
+RuneEngraving.SlotMinLevel.Chest    = 25
+RuneEngraving.SlotMinLevel.Wrist    = 40
+RuneEngraving.SlotMinLevel.Hands    = 25
+RuneEngraving.SlotMinLevel.Waist    = 40
+RuneEngraving.SlotMinLevel.Legs     = 25
+RuneEngraving.SlotMinLevel.Feet     = 40
+RuneEngraving.SlotMinLevel.Ring     = 60

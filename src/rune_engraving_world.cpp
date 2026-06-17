@@ -31,6 +31,7 @@ public:
     {
         sRuneEngravingMgr->SetEnabled(
             sConfigMgr->GetOption<bool>("RuneEngraving.Enable", true));
+        sRuneEngravingMgr->ApplyConfig();
     }
 
     void OnStartup() override

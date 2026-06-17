@@ -127,3 +127,29 @@ TEST(RuneSlotName, KnownAndUnknown)
     EXPECT_STREQ(RuneEngravingMgr::SlotName(RUNE_SLOT_RING), "Ring");
     EXPECT_STREQ(RuneEngravingMgr::SlotName(RUNE_SLOT_MAX), "Unknown");
 }
+
+// --- SlotUnlocked: level-gated engraving slots (SoD) ---
+TEST(RuneRulesSlotUnlocked, LevelGating)
+{
+    EXPECT_FALSE(SlotUnlocked(24, 25)); // below
+    EXPECT_TRUE(SlotUnlocked(25, 25));  // exactly at the unlock level
+    EXPECT_TRUE(SlotUnlocked(60, 25));  // above
+    EXPECT_TRUE(SlotUnlocked(1, 0));    // minLevel 0 == always available
+    EXPECT_TRUE(SlotUnlocked(1, 1));
+}
+
+// --- IsDuplicateRune: the same rune can't occupy two slots ---
+TEST(RuneRulesDuplicate, DetectsAcrossSlots)
+{
+    std::array<uint32, RUNE_SLOT_MAX> slots{};
+    slots[RUNE_SLOT_CHEST] = 7000001;
+
+    // Same rune, a different slot -> duplicate.
+    EXPECT_TRUE(IsDuplicateRune(slots, 7000001, RUNE_SLOT_LEGS));
+    // Same rune, the slot it already sits in (re-engrave) -> not a duplicate.
+    EXPECT_FALSE(IsDuplicateRune(slots, 7000001, RUNE_SLOT_CHEST));
+    // A different rune -> not a duplicate.
+    EXPECT_FALSE(IsDuplicateRune(slots, 7000002, RUNE_SLOT_LEGS));
+    // Empty (0) slots never count as a duplicate.
+    EXPECT_FALSE(IsDuplicateRune(slots, 0, RUNE_SLOT_LEGS));
+}

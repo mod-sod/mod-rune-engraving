@@ -35,6 +35,7 @@ public:
         static ChatCommandTable runeTable =
         {
             { "list",    HandleList,    SEC_GAMEMASTER,    Console::No  },
+            { "slots",   HandleSlots,   SEC_GAMEMASTER,    Console::No  },
             { "engrave", HandleEngrave, SEC_GAMEMASTER,    Console::No  },
             { "clear",   HandleClear,   SEC_GAMEMASTER,    Console::No  },
             { "unlock",  HandleUnlock,  SEC_GAMEMASTER,    Console::No  },
@@ -74,6 +75,28 @@ public:
         return true;
     }
 
+    static bool HandleSlots(ChatHandler* handler)
+    {
+        Player* player = handler->getSelectedPlayerOrSelf();
+        if (!player)
+        {
+            handler->SendSysMessage("No target player.");
+            return false;
+        }
+
+        uint8 level = player->GetLevel();
+        handler->PSendSysMessage("Engraving slots for {} (level {}):",
+            player->GetName(), uint32(level));
+        for (uint8 slot = 0; slot < RUNE_SLOT_MAX; ++slot)
+        {
+            uint32 minLevel = sRuneEngravingMgr->SlotMinLevel(slot);
+            handler->PSendSysMessage("  {} : unlocks at {} [{}]",
+                RuneEngravingMgr::SlotName(slot), minLevel,
+                level >= minLevel ? "open" : "locked");
+        }
+        return true;
+    }
+
     static bool HandleEngrave(ChatHandler* handler, uint8 slot, uint32 runeId)
     {
         Player* player = handler->getSelectedPlayerOrSelf();
@@ -83,7 +106,8 @@ public:
             return false;
         }
 
-        if (sRuneEngravingMgr->Engrave(player, slot, runeId))
+        EngraveResult result = sRuneEngravingMgr->Engrave(player, slot, runeId);
+        if (result == EngraveResult::Success)
         {
             RuneTemplate const* rune = sRuneEngravingMgr->GetRune(runeId);
             handler->PSendSysMessage("Engraved {} in slot {} ({}).",
@@ -92,9 +116,20 @@ public:
             return true;
         }
 
-        handler->PSendSysMessage("Could not engrave rune {} in slot {} "
-            "(check rune exists, fits the slot, and matches the class).",
-            runeId, uint32(slot));
+        char const* reason = "rune doesn't exist, fit the slot, or match the class";
+        switch (result)
+        {
+            case EngraveResult::PrereqMissing:   reason = "the character hasn't learned Engraving"; break;
+            case EngraveResult::SlotLevelTooLow: reason = "the slot isn't unlocked at this level"; break;
+            case EngraveResult::DuplicateRune:   reason = "that rune is already engraved in another slot"; break;
+            case EngraveResult::Locked:          reason = "the character hasn't unlocked that rune"; break;
+            case EngraveResult::WrongClass:      reason = "the rune isn't for that class"; break;
+            case EngraveResult::WrongSlot:       reason = "the rune doesn't fit that slot"; break;
+            case EngraveResult::UnknownRune:     reason = "no such rune (or it's disabled)"; break;
+            default: break;
+        }
+        handler->PSendSysMessage("Could not engrave rune {} in slot {}: {}.",
+            runeId, uint32(slot), reason);
         return false;
     }
 
