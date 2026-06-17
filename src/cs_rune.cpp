@@ -37,6 +37,9 @@ public:
             { "list",    HandleList,    SEC_GAMEMASTER,    Console::No  },
             { "engrave", HandleEngrave, SEC_GAMEMASTER,    Console::No  },
             { "clear",   HandleClear,   SEC_GAMEMASTER,    Console::No  },
+            { "unlock",  HandleUnlock,  SEC_GAMEMASTER,    Console::No  },
+            { "lock",    HandleLock,    SEC_GAMEMASTER,    Console::No  },
+            { "unlocks", HandleUnlocks, SEC_GAMEMASTER,    Console::No  },
             { "reload",  HandleReload,  SEC_ADMINISTRATOR, Console::Yes },
         };
         static ChatCommandTable root = { { "rune", runeTable } };
@@ -113,6 +116,63 @@ public:
 
         handler->PSendSysMessage("Nothing engraved in slot {}.", uint32(slot));
         return false;
+    }
+
+    static bool HandleUnlock(ChatHandler* handler, uint32 runeId)
+    {
+        Player* player = handler->getSelectedPlayerOrSelf();
+        if (!player)
+        {
+            handler->SendSysMessage("No target player.");
+            return false;
+        }
+
+        if (sRuneEngravingMgr->UnlockRune(player, runeId))
+            handler->PSendSysMessage("Unlocked rune {} for {}.", runeId, player->GetName());
+        else
+            handler->PSendSysMessage("Rune {} was already unlocked for {}.", runeId, player->GetName());
+        return true;
+    }
+
+    static bool HandleLock(ChatHandler* handler, uint32 runeId)
+    {
+        Player* player = handler->getSelectedPlayerOrSelf();
+        if (!player)
+        {
+            handler->SendSysMessage("No target player.");
+            return false;
+        }
+
+        if (sRuneEngravingMgr->LockRune(player, runeId))
+            handler->PSendSysMessage("Locked rune {} for {}.", runeId, player->GetName());
+        else
+            handler->PSendSysMessage("Rune {} was not unlocked for {}.", runeId, player->GetName());
+        return true;
+    }
+
+    static bool HandleUnlocks(ChatHandler* handler)
+    {
+        Player* player = handler->getSelectedPlayerOrSelf();
+        if (!player)
+        {
+            handler->SendSysMessage("No target player.");
+            return false;
+        }
+
+        std::vector<uint32> ids = sRuneEngravingMgr->GetUnlockedRunes(player->GetGUID());
+        if (ids.empty())
+        {
+            handler->PSendSysMessage("{} has no unlocked runes.", player->GetName());
+            return true;
+        }
+
+        handler->PSendSysMessage("Unlocked runes for {}:", player->GetName());
+        for (uint32 id : ids)
+        {
+            RuneTemplate const* rune = sRuneEngravingMgr->GetRune(id);
+            handler->PSendSysMessage("  {} : {}", id, rune ? rune->Name.c_str() : "?");
+        }
+        return true;
     }
 
     static bool HandleReload(ChatHandler* handler)

@@ -15,9 +15,11 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "Chat.h"
 #include "DatabaseEnv.h"
 #include "ObjectGuid.h"
 #include "Player.h"
+#include "QuestDef.h"
 #include "RuneEngravingMgr.h"
 #include "ScriptMgr.h"
 
@@ -44,6 +46,20 @@ public:
             return;
 
         sRuneEngravingMgr->UnloadPlayer(player->GetGUID());
+    }
+
+    // Completing a quest unlocks any runes mapped to it (rune_quest_unlock).
+    void OnPlayerCompleteQuest(Player* player, Quest const* quest) override
+    {
+        if (!sRuneEngravingMgr->IsEnabled() || !player || !quest)
+            return;
+
+        std::vector<std::string> unlocked =
+            sRuneEngravingMgr->UnlockRunesForQuest(player, quest->GetQuestId());
+        for (std::string const& name : unlocked)
+            ChatHandler(player->GetSession()).PSendSysMessage(
+                "|cFF00FF00[Rune Engraver]|r You have discovered the |cFFFFD700{}|r "
+                "rune. Visit a Rune Engraver to engrave it.", name);
     }
 
     // Purge a character's rune rows when it is deleted, so a later character that

@@ -22,12 +22,14 @@ The engine works end-to-end:
   headlessly for testing.
 - **Grant/persist** — engraving grants the rune's spell (as a temporary spell),
   saved per-character; it's re-applied on login and removed when un-engraved.
+- **Unlocks** — runes are available by class by default, or can be **gated behind
+  quests**: a rune mapped in `rune_quest_unlock` is hidden until the character
+  completes the quest that unlocks it (per-rune, opt-in).
 - **Robustness** — class-gated rune lists, self-healing on GUID reuse, and cleanup
   on character deletion.
 
-Scope of v1: runes are **auto-available by class** (no quest/discovery gating yet —
-the contract for that is stubbed in), and the UI is the **gossip NPC** (no client
-addon yet). `mod-sod-mage` wires its **Regeneration** spell as the first proof rune.
+Scope so far: the UI is the **gossip NPC** (no client addon yet), and
+`mod-sod-mage` wires its **Regeneration** spell as the first proof rune.
 
 ## Install
 
@@ -69,11 +71,18 @@ no-op when the engine isn't installed. The full contract — columns, slot/class
 masks, the guarded-SQL pattern, and id bands — is in
 [docs/integrating-content.md](docs/integrating-content.md).
 
+## Tests
+
+Unit tests cover the pure slot/class eligibility rules (the catalog contract) and
+run in AzerothCore's `unit_tests` target — no core edits. Build with
+`-DBUILD_TESTING=ON` and run `./src/test/unit_tests --gtest_filter='Rune*'`. See
+[docs/testing.md](docs/testing.md).
+
 ## Documentation
 
-Developer docs (architecture, the content contract, deploy/verify, gotchas) live in
-[`docs/`](docs/Home.md) and are mirrored to the project wiki. Start at
-[docs/Home.md](docs/Home.md).
+Developer docs (architecture, the content contract, deploy/verify, testing,
+gotchas) live in [`docs/`](docs/Home.md) and are mirrored to the project wiki.
+Start at [docs/Home.md](docs/Home.md).
 
 ## Conventions
 

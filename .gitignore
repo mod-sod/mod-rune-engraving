@@ -1,6 +1,9 @@
 # Module config — generated from conf/*.conf.dist at build time
 conf/*.conf
 
+# Test run log (tee'd by tests/run-in-docker.sh)
+tests/_lastrun.log
+
 # Prerequisites
 *.d
 

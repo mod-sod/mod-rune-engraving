@@ -64,6 +64,14 @@ repaint a removed entry live. It clears on reopening the spellbook or relogging.
 Replacement UIs (e.g. DragonUI) can make this stickier. It's cosmetic; the spell is
 genuinely gone.
 
+## A gated rune doesn't appear at the engraver — that's by design
+
+A rune mapped in `rune_quest_unlock` is hidden until the character unlocks it (by
+completing the quest). If a rune you expect is missing, check whether it's gated
+and whether the character has the unlock: `.rune unlocks` lists unlocks, and
+`.rune unlock <id>` force-grants one for testing. A rune with no quest mapping is
+never gated. Remember `.rune reload` after changing `rune_quest_unlock`.
+
 ## Which spellbook tab a rune spell shows in is the *content* module's job
 
 Tab placement (General vs Arcane/Fire/…) is decided client-side by

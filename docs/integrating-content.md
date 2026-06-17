@@ -113,15 +113,36 @@ apply the engine's base SQL first, then your module's rune SQL. If both are
 auto-imported and your rune SQL happens to run first, it harmlessly no-ops once
 (the guard) and lands on the next apply — it's idempotent, so just re-run it.
 
-## Future: gated unlocks (not in v1)
+## Gating runes behind quests
 
-The engine ships two tables for a later quest/discovery-gated unlock path; **v1
-ignores them** (any class-legal rune is engravable):
+By default a rune is **available by class** the moment its catalog row exists.
+To make a rune *earned* instead, map it to one or more quests in
+`rune_quest_unlock` (world DB):
 
-- `rune_quest_unlock` (world): `rune_id`, `quest_id` — map a rune to the quest(s)
-  that will unlock it.
-- `character_rune_unlock` (characters): `guid`, `rune_id` — per-character unlocked
-  runes.
+| Column | Meaning |
+|--------|---------|
+| `rune_id` | the rune to gate |
+| `quest_id` | a quest whose completion unlocks it |
+
+Behavior:
+
+- A rune referenced by **any** `rune_quest_unlock` row becomes **gated**: it won't
+  appear at the engraver (and can't be engraved) until the character has unlocked
+  it. A rune with **no** mapping stays available by class — so gating is per-rune,
+  opt-in, and you don't touch runes you want freely available.
+- When a character completes a mapped quest, the engine (via `OnPlayerCompleteQuest`)
+  inserts the rune into `character_rune_unlock` and whispers the player. Multiple
+  quests can unlock the same rune (any one suffices); multiple runes can hang off
+  one quest.
+- `character_rune_unlock` (characters DB: `guid`, `rune_id`) is engine-managed —
+  content modules don't write it. It's cleared when a character is deleted.
+
+Guard your `rune_quest_unlock` inserts exactly like the catalog inserts (the table
+won't exist without the engine — use the conditional dynamic-SQL pattern above,
+targeting `rune_quest_unlock`).
+
+For testing without authoring a quest, a GM can force unlock state:
+`.rune unlock <runeId>` / `.rune lock <runeId>` / `.rune unlocks`.
 
 `rune_contract.version` (currently `1`) lets your SQL sanity-check compatibility.
 

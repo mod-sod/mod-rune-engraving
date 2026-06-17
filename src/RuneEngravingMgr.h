@@ -25,6 +25,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 class Player;
@@ -48,6 +49,25 @@ enum RuneSlot : uint8
     RUNE_SLOT_RING     = 10,
     RUNE_SLOT_MAX      = 11
 };
+
+// Pure eligibility predicates — no Player, no DB. The manager delegates to these
+// so the slot/class-mask contract (which content modules rely on) is unit-testable
+// in isolation. `slotMask` is a bitmask of (1 << RuneSlot); `classMask` is the AC
+// classmask (1 << (classId-1), classId 1..11; 0 = any class).
+namespace RuneRules
+{
+    inline bool SlotIsValid(uint8 slot) { return slot < RUNE_SLOT_MAX; }
+
+    inline bool FitsSlot(uint32 slotMask, uint8 slot)
+    {
+        return SlotIsValid(slot) && (slotMask & (1u << slot)) != 0;
+    }
+
+    inline bool AllowedForClass(uint32 classMask, uint8 classId)
+    {
+        return classMask == 0 || (classMask & (1u << (classId - 1))) != 0;
+    }
+}
 
 // One catalog entry from `rune_template`. Content modules own these rows; the
 // engine only reads them, so it never needs to know which module a rune is from.
@@ -82,12 +102,22 @@ public:
     std::vector<RuneTemplate const*> GetRunesForSlot(Player* player, uint8 slot) const;
 
     // Per-character state
-    void LoadPlayer(Player* player);    // on login: read character_rune
+    void LoadPlayer(Player* player);    // on login: read character_rune(+_unlock)
     void UnloadPlayer(ObjectGuid guid); // on logout: drop cached state
     void ApplyAll(Player* player);      // grant the spells for all engraved slots
     bool Engrave(Player* player, uint8 slot, uint32 runeId);
     bool RemoveRune(Player* player, uint8 slot);
     uint32 GetEngraved(ObjectGuid guid, uint8 slot) const;
+
+    // Unlocks. A rune is "gated" if any rune_quest_unlock row references it; a
+    // gated rune is only engravable once the character has unlocked it. Runes
+    // with no quest mapping are not gated (available by class).
+    bool IsGated(uint32 runeId) const;
+    bool UnlockRune(Player* player, uint32 runeId);  // true if newly unlocked
+    bool LockRune(Player* player, uint32 runeId);    // true if it was unlocked
+    // Unlock every rune mapped to `questId`; returns the names newly unlocked.
+    std::vector<std::string> UnlockRunesForQuest(Player* player, uint32 questId);
+    std::vector<uint32> GetUnlockedRunes(ObjectGuid guid) const;
 
     // Purge a character's rune rows. Called when a character is deleted so a
     // reused GUID can never inherit a previous (possibly different-class)
@@ -97,10 +127,9 @@ public:
     // Eligibility helpers
     bool RuneFitsSlot(RuneTemplate const& rune, uint8 slot) const;
     bool RuneAllowedForClass(Player* player, RuneTemplate const& rune) const;
-    bool IsUnlocked(Player* player, RuneTemplate const& rune) const;
 
     static char const* SlotName(uint8 slot);
-    static bool IsValidSlot(uint8 slot) { return slot < RUNE_SLOT_MAX; }
+    static bool IsValidSlot(uint8 slot) { return RuneRules::SlotIsValid(slot); }
 
 private:
     RuneEngravingMgr() = default;
@@ -111,7 +140,10 @@ private:
 
     bool _enabled = true;
     std::unordered_map<uint32, RuneTemplate> _catalog;                          // guarded by _catalogMutex
+    std::unordered_map<uint32, std::vector<uint32>> _questUnlocks;              // questId -> runeIds; _catalogMutex
+    std::unordered_set<uint32> _gatedRunes;                                     // runes referenced by any quest; _catalogMutex
     std::unordered_map<ObjectGuid, std::array<uint32, RUNE_SLOT_MAX>> _engraved; // guarded by _stateMutex
+    std::unordered_map<ObjectGuid, std::unordered_set<uint32>> _unlocked;        // guid -> unlocked runeIds; _stateMutex
 
     // Lock ordering: only ever acquire _catalogMutex while (optionally) holding
     // _stateMutex, never the reverse. The state-side methods call GetRune (which

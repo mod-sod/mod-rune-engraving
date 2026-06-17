@@ -47,6 +47,21 @@ means. Temporary spells are **not persisted** to `character_spell`, so they vani
 on logout — which is intentional: the engine **re-applies** every engraved rune's
 spell on login (`OnPlayerLogin`). The source of truth is the `character_rune` table.
 
+## Unlocks (quest gating)
+
+A rune is **available by class** by default. A rune mapped in `rune_quest_unlock`
+becomes **gated**: it's hidden at the engraver and unengravable until the character
+unlocks it. `OnPlayerCompleteQuest` looks up the completed quest in
+`rune_quest_unlock` and records the unlock per-character in `character_rune_unlock`
+(loaded on login alongside engraved runes). Gating is per-rune and opt-in — a rune
+with no quest mapping is never gated. See [Integrating content](integrating-content.md).
+
+The catalog-side gating data (`rune_quest_unlock`) and the per-character unlock
+state live under the two different locks, so the engrave list is computed in two
+phases (collect class/slot-legal candidates + their gated flag under the catalog
+lock, then filter by the character's unlock set under the state lock) to keep the
+one-way lock ordering.
+
 ## Self-healing edge cases
 
 - **GUID reuse.** AzerothCore can reseed the character-GUID counter after a restart,

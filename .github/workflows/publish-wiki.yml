@@ -94,7 +94,7 @@ jobs:
           }
 
           emit_section "Guide"     architecture integrating-content deploy-and-verify
-          emit_section "Reference" gotchas
+          emit_section "Reference" gotchas testing
 
           # Catch-all: any doc not placed under a heading above.
           others=()

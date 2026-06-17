@@ -49,30 +49,44 @@ void RuneEngravingMgr::LoadCatalog()
 {
     std::lock_guard<std::mutex> guard(_catalogMutex);
     _catalog.clear();
+    _questUnlocks.clear();
+    _gatedRunes.clear();
 
-    QueryResult result = WorldDatabase.Query(
-        "SELECT `rune_id`, `spell_id`, `class_mask`, `slot_mask`, `name`, `description` "
-        "FROM `rune_template` WHERE `enabled` = 1");
-    if (!result)
+    if (QueryResult result = WorldDatabase.Query(
+            "SELECT `rune_id`, `spell_id`, `class_mask`, `slot_mask`, `name`, `description` "
+            "FROM `rune_template` WHERE `enabled` = 1"))
     {
-        LOG_INFO("module", "RuneEngraving: catalog empty (no enabled rows in rune_template).");
-        return;
+        do
+        {
+            Field* f = result->Fetch();
+            RuneTemplate rune;
+            rune.RuneId      = f[0].Get<uint32>();
+            rune.SpellId     = f[1].Get<uint32>();
+            rune.ClassMask   = f[2].Get<uint32>();
+            rune.SlotMask    = f[3].Get<uint32>();
+            rune.Name        = f[4].Get<std::string>();
+            rune.Description = f[5].Get<std::string>();
+            _catalog[rune.RuneId] = std::move(rune);
+        } while (result->NextRow());
     }
 
-    do
+    // Quest-unlock mappings: a rune referenced here is "gated" and only
+    // engravable once the character has unlocked it (see UnlockRunesForQuest).
+    if (QueryResult qr = WorldDatabase.Query(
+            "SELECT `quest_id`, `rune_id` FROM `rune_quest_unlock`"))
     {
-        Field* f = result->Fetch();
-        RuneTemplate rune;
-        rune.RuneId      = f[0].Get<uint32>();
-        rune.SpellId     = f[1].Get<uint32>();
-        rune.ClassMask   = f[2].Get<uint32>();
-        rune.SlotMask    = f[3].Get<uint32>();
-        rune.Name        = f[4].Get<std::string>();
-        rune.Description = f[5].Get<std::string>();
-        _catalog[rune.RuneId] = std::move(rune);
-    } while (result->NextRow());
+        do
+        {
+            Field* f = qr->Fetch();
+            uint32 questId = f[0].Get<uint32>();
+            uint32 runeId = f[1].Get<uint32>();
+            _questUnlocks[questId].push_back(runeId);
+            _gatedRunes.insert(runeId);
+        } while (qr->NextRow());
+    }
 
-    LOG_INFO("module", "RuneEngraving: loaded {} rune(s) into the catalog.", _catalog.size());
+    LOG_INFO("module", "RuneEngraving: loaded {} rune(s) ({} gated behind quests).",
+        _catalog.size(), _gatedRunes.size());
 }
 
 uint32 RuneEngravingMgr::CatalogSize() const
@@ -92,23 +106,20 @@ RuneTemplate const* RuneEngravingMgr::GetRune(uint32 runeId) const
 
 bool RuneEngravingMgr::RuneFitsSlot(RuneTemplate const& rune, uint8 slot) const
 {
-    return IsValidSlot(slot) && (rune.SlotMask & (1u << slot)) != 0;
+    return RuneRules::FitsSlot(rune.SlotMask, slot);
 }
 
 bool RuneEngravingMgr::RuneAllowedForClass(Player* player, RuneTemplate const& rune) const
 {
     if (!player)
         return false;
-    if (rune.ClassMask == 0)
-        return true;
-    return (rune.ClassMask & (1u << (player->getClass() - 1))) != 0;
+    return RuneRules::AllowedForClass(rune.ClassMask, player->getClass());
 }
 
-bool RuneEngravingMgr::IsUnlocked(Player* player, RuneTemplate const& rune) const
+bool RuneEngravingMgr::IsGated(uint32 runeId) const
 {
-    // v1: a class-legal rune is considered unlocked. The character_rune_unlock
-    // table and the rune_quest_unlock contract back a gated path added later.
-    return RuneAllowedForClass(player, rune);
+    std::lock_guard<std::mutex> guard(_catalogMutex);
+    return _gatedRunes.find(runeId) != _gatedRunes.end();
 }
 
 std::vector<RuneTemplate const*> RuneEngravingMgr::GetRunesForSlot(Player* player, uint8 slot) const
@@ -117,11 +128,27 @@ std::vector<RuneTemplate const*> RuneEngravingMgr::GetRunesForSlot(Player* playe
     if (!player || !IsValidSlot(slot))
         return out;
 
-    std::lock_guard<std::mutex> guard(_catalogMutex);
-    for (auto const& [runeId, rune] : _catalog)
+    // Phase 1 (catalog lock): class- and slot-legal candidates, each tagged with
+    // whether it's gated behind a quest unlock.
+    std::vector<std::pair<RuneTemplate const*, bool>> candidates;
     {
-        if (RuneFitsSlot(rune, slot) && RuneAllowedForClass(player, rune) && IsUnlocked(player, rune))
-            out.push_back(&rune);
+        std::lock_guard<std::mutex> guard(_catalogMutex);
+        for (auto const& [runeId, rune] : _catalog)
+            if (RuneFitsSlot(rune, slot) && RuneAllowedForClass(player, rune))
+                candidates.emplace_back(&rune,
+                    _gatedRunes.find(runeId) != _gatedRunes.end());
+    }
+
+    // Phase 2 (state lock): drop gated runes this character hasn't unlocked.
+    // Done as a separate lock so we never hold both at once (lock ordering).
+    std::lock_guard<std::mutex> guard(_stateMutex);
+    auto it = _unlocked.find(player->GetGUID());
+    for (auto const& [rune, gated] : candidates)
+    {
+        if (gated && (it == _unlocked.end()
+                || it->second.find(rune->RuneId) == it->second.end()))
+            continue;
+        out.push_back(rune);
     }
     return out;
 }
@@ -149,14 +176,27 @@ void RuneEngravingMgr::LoadPlayer(Player* player)
         } while (result->NextRow());
     }
 
+    std::unordered_set<uint32> unlocked;
+    if (QueryResult ur = CharacterDatabase.Query(
+            "SELECT `rune_id` FROM `character_rune_unlock` WHERE `guid` = {}",
+            guid.GetCounter()))
+    {
+        do
+        {
+            unlocked.insert(ur->Fetch()[0].Get<uint32>());
+        } while (ur->NextRow());
+    }
+
     std::lock_guard<std::mutex> guard(_stateMutex);
     _engraved[guid] = slots;
+    _unlocked[guid] = std::move(unlocked);
 }
 
 void RuneEngravingMgr::UnloadPlayer(ObjectGuid guid)
 {
     std::lock_guard<std::mutex> guard(_stateMutex);
     _engraved.erase(guid);
+    _unlocked.erase(guid);
 }
 
 void RuneEngravingMgr::ApplyAll(Player* player)
@@ -224,10 +264,20 @@ bool RuneEngravingMgr::Engrave(Player* player, uint8 slot, uint32 runeId)
     std::lock_guard<std::mutex> guard(_stateMutex);
 
     RuneTemplate const* rune = GetRune(runeId);
-    if (!rune || !RuneFitsSlot(*rune, slot) || !RuneAllowedForClass(player, *rune) || !IsUnlocked(player, *rune))
+    if (!rune || !RuneFitsSlot(*rune, slot) || !RuneAllowedForClass(player, *rune))
         return false;
 
     ObjectGuid guid = player->GetGUID();
+
+    // Gated runes require this character to have unlocked them (e.g. via a quest).
+    // IsGated briefly takes _catalogMutex — allowed here (state -> catalog order).
+    if (IsGated(runeId))
+    {
+        auto u = _unlocked.find(guid);
+        if (u == _unlocked.end() || u->second.find(runeId) == u->second.end())
+            return false;
+    }
+
     std::array<uint32, RUNE_SLOT_MAX>& slots = _engraved[guid];
 
     // Strip the spell from the rune currently in this slot, unless another slot
@@ -292,6 +342,76 @@ void RuneEngravingMgr::DeleteCharacterData(CharacterDatabaseTransaction trans, u
     trans->Append("DELETE FROM `character_rune` WHERE `guid` = {}", guidLow);
     trans->Append("DELETE FROM `character_rune_unlock` WHERE `guid` = {}", guidLow);
 
+    ObjectGuid guid = ObjectGuid::Create<HighGuid::Player>(guidLow);
     std::lock_guard<std::mutex> guard(_stateMutex);
-    _engraved.erase(ObjectGuid::Create<HighGuid::Player>(guidLow));
+    _engraved.erase(guid);
+    _unlocked.erase(guid);
+}
+
+bool RuneEngravingMgr::UnlockRune(Player* player, uint32 runeId)
+{
+    if (!player)
+        return false;
+
+    ObjectGuid guid = player->GetGUID();
+    std::lock_guard<std::mutex> guard(_stateMutex);
+    if (!_unlocked[guid].insert(runeId).second)
+        return false; // already unlocked
+
+    CharacterDatabase.Execute(
+        "REPLACE INTO `character_rune_unlock` (`guid`, `rune_id`) VALUES ({}, {})",
+        guid.GetCounter(), runeId);
+    return true;
+}
+
+bool RuneEngravingMgr::LockRune(Player* player, uint32 runeId)
+{
+    if (!player)
+        return false;
+
+    ObjectGuid guid = player->GetGUID();
+    std::lock_guard<std::mutex> guard(_stateMutex);
+    auto it = _unlocked.find(guid);
+    if (it == _unlocked.end() || it->second.erase(runeId) == 0)
+        return false;
+
+    CharacterDatabase.Execute(
+        "DELETE FROM `character_rune_unlock` WHERE `guid` = {} AND `rune_id` = {}",
+        guid.GetCounter(), runeId);
+    return true;
+}
+
+std::vector<std::string> RuneEngravingMgr::UnlockRunesForQuest(Player* player, uint32 questId)
+{
+    std::vector<std::string> unlockedNames;
+    if (!player)
+        return unlockedNames;
+
+    // Phase 1 (catalog lock): which runes this quest unlocks.
+    std::vector<uint32> runeIds;
+    {
+        std::lock_guard<std::mutex> guard(_catalogMutex);
+        auto it = _questUnlocks.find(questId);
+        if (it == _questUnlocks.end())
+            return unlockedNames;
+        runeIds = it->second;
+    }
+
+    // Phase 2: unlock each (UnlockRune / GetRune take their own locks).
+    for (uint32 runeId : runeIds)
+        if (UnlockRune(player, runeId))
+            if (RuneTemplate const* rune = GetRune(runeId))
+                unlockedNames.push_back(rune->Name);
+
+    return unlockedNames;
+}
+
+std::vector<uint32> RuneEngravingMgr::GetUnlockedRunes(ObjectGuid guid) const
+{
+    std::vector<uint32> out;
+    std::lock_guard<std::mutex> guard(_stateMutex);
+    auto it = _unlocked.find(guid);
+    if (it != _unlocked.end())
+        out.assign(it->second.begin(), it->second.end());
+    return out;
 }
