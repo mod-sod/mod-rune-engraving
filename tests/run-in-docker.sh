@@ -10,7 +10,7 @@
 #       bash modules/mod-rune-engraving/tests/run-in-docker.sh [JOBS]
 #
 # JOBS defaults to all cores; pass a number (e.g. 4) to leave the host headroom.
-set -e
+set -eo pipefail
 
 cd /azerothcore
 
@@ -32,4 +32,5 @@ cmake -S . -B var/build \
 
 cmake --build var/build --target unit_tests -j"${JOBS}"
 
-./var/build/src/test/unit_tests --gtest_filter="Rune*"
+./var/build/src/test/unit_tests --gtest_filter="Rune*" \
+  2>&1 | tee modules/mod-rune-engraving/tests/_lastrun.log
