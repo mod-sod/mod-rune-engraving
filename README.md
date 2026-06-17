@@ -37,7 +37,11 @@ The engine works end-to-end:
 - **Robustness** — class-gated rune lists, self-healing on GUID reuse, and cleanup
   on character deletion.
 
-Scope so far: the UI is the **gossip NPC** (no client addon yet), and
+- **Client UI** — an optional in-game panel (the separate **RuneEngraver** addon)
+  opens from a Character Sheet button to engrave/remove runes, talking to the engine
+  over a small `RUNE` addon-message protocol (pure C++, no core edits). The gossip
+  NPC stays as a debug/no-addon fallback. See [docs/addon-ui.md](docs/addon-ui.md).
+
 `mod-sod-mage` wires two proof runes — **Regeneration** (item-gated via a SoD item
 chain) and **Mass Regeneration** (quest-gated).
 
@@ -94,9 +98,9 @@ run in AzerothCore's `unit_tests` target — no core edits. Build with
 
 ## Documentation
 
-Developer docs (architecture, the content contract, deploy/verify, testing,
-gotchas) live in [`docs/`](docs/Home.md) and are mirrored to the project wiki.
-Start at [docs/Home.md](docs/Home.md).
+Developer docs (architecture, the content contract, the addon-UI protocol,
+deploy/verify, testing, gotchas) live in [`docs/`](docs/Home.md) and are mirrored
+to the project wiki. Start at [docs/Home.md](docs/Home.md).
 
 ## Conventions
 

@@ -99,6 +99,7 @@ struct RuneTemplate
     uint32      SlotMask  = 0; // bitmask of (1 << RuneSlot) this rune is legal in
     std::string Name;
     std::string Description;
+    std::string Icon;          // inventory-icon name (for the addon UI); may be empty
 };
 
 // Outcome of an Engrave attempt, so callers (NPC, .rune command) can give the
@@ -197,6 +198,10 @@ private:
     // Whether any *other* engraved slot of this character grants `spellId`, so a
     // swap/removal doesn't strip a spell another slot still provides.
     bool SpellGrantedByOtherSlot(ObjectGuid guid, uint32 spellId, uint8 exceptSlot) const;
+
+    // Grant a rune's spell as temporary (one client "learned" notification — see
+    // the .cpp note on why this uses addSpell, not learnSpell).
+    void GrantSpell(Player* player, uint32 spellId);
 
     // Reset one quest's status on a character (mirrors the core's `.quest remove`):
     // clear it from the log, and drop its active/rewarded state.

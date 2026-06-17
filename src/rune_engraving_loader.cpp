@@ -20,6 +20,7 @@ void AddSC_rune_engraving_world_script();
 void AddSC_rune_engraving_player_script();
 void AddSC_npc_rune_engraver();
 void AddSC_item_rune_unlock();
+void AddSC_rune_engraving_addon();
 void AddSC_cs_rune();
 
 // Entry point invoked by the module loader. The name must be
@@ -30,5 +31,6 @@ void Addmod_rune_engravingScripts()
     AddSC_rune_engraving_player_script();
     AddSC_npc_rune_engraver();
     AddSC_item_rune_unlock();
+    AddSC_rune_engraving_addon();
     AddSC_cs_rune();
 }

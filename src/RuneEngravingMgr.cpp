@@ -100,7 +100,7 @@ void RuneEngravingMgr::LoadCatalog()
     _gatedRunes.clear();
 
     if (QueryResult result = WorldDatabase.Query(
-            "SELECT `rune_id`, `spell_id`, `class_mask`, `slot_mask`, `name`, `description` "
+            "SELECT `rune_id`, `spell_id`, `class_mask`, `slot_mask`, `name`, `description`, `icon` "
             "FROM `rune_template` WHERE `enabled` = 1"))
     {
         do
@@ -113,6 +113,7 @@ void RuneEngravingMgr::LoadCatalog()
             rune.SlotMask    = f[3].Get<uint32>();
             rune.Name        = f[4].Get<std::string>();
             rune.Description = f[5].Get<std::string>();
+            rune.Icon        = f[6].Get<std::string>();
             _catalog[rune.RuneId] = std::move(rune);
         } while (result->NextRow());
     }
@@ -294,7 +295,7 @@ void RuneEngravingMgr::ApplyAll(Player* player)
         }
 
         if (rune->SpellId)
-            player->learnSpell(rune->SpellId, /*temporary*/ true);
+            GrantSpell(player, rune->SpellId);
     }
 }
 
@@ -355,6 +356,12 @@ EngraveResult RuneEngravingMgr::Engrave(Player* player, uint8 slot, uint32 runeI
     if (RuneRules::IsDuplicateRune(slots, runeId, slot))
         return EngraveResult::DuplicateRune;
 
+    // Re-engraving the rune already in this slot is a no-op: the spell is already
+    // granted, so skip the redundant DB write and grant (whose client "learned"
+    // notification would otherwise fire again).
+    if (slots[slot] == runeId)
+        return EngraveResult::Success;
+
     // Strip the spell from the rune currently in this slot, unless another slot
     // still grants the same spell.
     if (uint32 oldRuneId = slots[slot])
@@ -369,9 +376,29 @@ EngraveResult RuneEngravingMgr::Engrave(Player* player, uint8 slot, uint32 runeI
         guid.GetCounter(), uint32(slot), runeId);
 
     if (rune->SpellId)
-        player->learnSpell(rune->SpellId, /*temporary*/ true);
+        GrantSpell(player, rune->SpellId);
 
     return EngraveResult::Success;
+}
+
+// Grant a rune's spell as temporary.
+//
+// We deliberately use addSpell instead of Player::learnSpell. learnSpell is the
+// high-level path (it fires OnPlayerLearnSpell, follows rank chains, learns
+// spells that require this one, and guards against re-learning an active spell),
+// but for a *temporary* spell it sends the "you have learned X" packet TWICE —
+// once inside addSpell and once itself — so callers see a doubled notification.
+// Rune spells are standalone custom IDs (no rank chain, nothing requires them,
+// nothing tracks learning them), so the only learnSpell behavior we actually
+// want is its already-known guard, which we replicate here. addSpell then sends
+// exactly one packet — and that single packet is required, since ApplyAll runs
+// after the client's initial spell list, so the client must be told the spell.
+void RuneEngravingMgr::GrantSpell(Player* player, uint32 spellId)
+{
+    if (!player || player->HasActiveSpell(spellId))
+        return;
+
+    player->addSpell(spellId, SPEC_MASK_ALL, /*updateActive*/ true, /*temporary*/ true);
 }
 
 bool RuneEngravingMgr::RemoveRune(Player* player, uint8 slot)

@@ -27,6 +27,9 @@ See [Architecture](architecture.md).
   id bands). Read this to add runes from another module.
 - **[Deploy & verify](deploy-and-verify.md)** — applying SQL, the engraver NPC,
   the `.rune` test command, and confirming it loaded.
+- **[Addon UI](addon-ui.md)** — the optional in-game panel: the `RUNE`
+  addon-message protocol and the pure-C++ server side (the client addon,
+  *RuneEngraver*, is a separate repo).
 - **[Gotchas & troubleshooting](gotchas.md)** — the hard-won lessons, in one place.
 
 ## At a glance
