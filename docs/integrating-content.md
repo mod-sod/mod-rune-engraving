@@ -106,9 +106,10 @@ Pick a high, documented band so modules never collide. Known allocations:
 |--------|------|
 | `mod-sod-mage` | `7000000–7000999` |
 
-`mod-sod-mage`'s `sod_mage_quest_runes.sql` is the first real **quest-gated**
-example — a rune mapped in `rune_quest_unlock` (see below) plus the mage quest
-that unlocks it.
+`mod-sod-mage` ships two **item-gated** examples: `sod_mage_regeneration_unlock.sql`
+(a multi-step SoD combine chain) and `sod_mage_mass_regeneration.sql` (notes dropped
+by the `mod-sod-world` Awakened Lich). **Quest-gating** (`rune_quest_unlock`, below)
+is fully supported by the engine, though no shipped content currently uses it.
 
 ## Order of application
 

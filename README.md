@@ -43,7 +43,8 @@ The engine works end-to-end:
   NPC stays as a debug/no-addon fallback. See [docs/addon-ui.md](docs/addon-ui.md).
 
 `mod-sod-mage` wires two proof runes — **Regeneration** (item-gated via a SoD item
-chain) and **Mass Regeneration** (quest-gated).
+chain) and **Mass Regeneration** (drop-gated: notes from the shared `mod-sod-world`
+Awakened Lich).
 
 ## Install
 
