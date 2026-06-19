@@ -100,11 +100,21 @@ Notes:
 
 ## 3. Reserve a `rune_id` band
 
-Pick a high, documented band so modules never collide. Known allocations:
+Pick a high, documented band so modules never collide. This table is the **single
+source of truth** for the SoD class modules — each owns one 1000-wide band:
 
 | Module | Band |
 |--------|------|
 | `mod-sod-mage` | `7000000–7000999` |
+| `mod-sod-warrior` | `7001000–7001999` |
+| `mod-sod-paladin` | `7002000–7002999` |
+| `mod-sod-hunter` | `7003000–7003999` |
+| `mod-sod-rogue` | `7004000–7004999` |
+| `mod-sod-priest` | `7005000–7005999` |
+| `mod-sod-deathknight` | `7006000–7006999` |
+| `mod-sod-shaman` | `7007000–7007999` |
+| `mod-sod-warlock` | `7008000–7008999` |
+| `mod-sod-druid` | `7009000–7009999` |
 
 `mod-sod-mage` ships several **item-gated** examples: `sod_mage_regeneration_unlock.sql`
 and `sod_mage_living_flame_unlock.sql` (multi-step SoD combine chains) and
