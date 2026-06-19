@@ -84,12 +84,13 @@ GM command for driving the engine without the NPC:
 To verify **quest gating**: map a rune in `rune_quest_unlock`, `.rune reload`,
 confirm it's hidden at the engraver, complete the quest (you'll get a whisper),
 then confirm it now lists. `.rune unlock`/`lock` shortcut the quest for testing.
+
 To re-run the discovery flow, set `RuneEngraving.DebugMenu = 1` and use the
-engraver's "[Debug] Reset my runes & quests" option — it resets every
-quest-mapped rune's quest, locks every quest- and item-gated rune, clears their
-engravings, and hands back the unlock item for each relocked item-gated rune (the
-consumed deciphered notes), putting the character back to the pre-discovery state.
-Leave the flag off on live.
+engraver's "[Debug] Reset my runes & quests" option — it resets every quest-mapped
+rune's quest, locks every quest- and item-gated rune, clears their engravings, and
+hands back the unlock item for each relocked item-gated rune (the consumed
+deciphered notes), putting the character back to the pre-discovery state. Leave the
+flag off on live.
 
 To verify the **SoD engraving rules** (config-only — edit `mod_rune_engraving.conf`,
 restart): on a character below a slot's `RuneEngraving.SlotMinLevel`, the engraver

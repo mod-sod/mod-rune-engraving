@@ -14,7 +14,7 @@ we must avoid. The coupling is therefore **through the database, not symbols**.
 
 | Side | Owns | Role |
 |------|------|------|
-| **Engine** (this module) | `rune_template`, `rune_quest_unlock`, `rune_contract` (world); `character_rune`, `character_rune_unlock` (characters); all C++ | the mechanism; seeds **no** runes |
+| **Engine** (this module) | `rune_template`, `rune_quest_unlock`, `rune_item_unlock`, `rune_contract` (world); `character_rune`, `character_rune_unlock` (characters); all C++ | the mechanism; seeds **no** runes |
 | **Content** (e.g. `mod-sod-mage`) | its own spells + rune rows | inserts into `rune_template`, guarded so it's a no-op without the engine |
 
 Result:
@@ -47,17 +47,19 @@ means. Temporary spells are **not persisted** to `character_spell`, so they vani
 on logout — which is intentional: the engine **re-applies** every engraved rune's
 spell on login (`OnPlayerLogin`). The source of truth is the `character_rune` table.
 
-## Unlocks (quest gating)
+## Unlocks (gating)
 
-A rune is **available by class** by default. A rune mapped in `rune_quest_unlock`
-becomes **gated**: it's hidden at the engraver and unengravable until the character
-unlocks it. `OnPlayerCompleteQuest` looks up the completed quest in
-`rune_quest_unlock` and records the unlock per-character in `character_rune_unlock`
-(loaded on login alongside engraved runes). A rune can also be gated behind an
-**item**: `rune_item_unlock` maps an item to rune(s), and the engine's generic
-`item_rune_unlock` `ItemScript` unlocks them (and consumes the item) on use.
-Either mapping marks the rune gated; gating is per-rune and opt-in — a rune with no
-mapping is never gated. See [Integrating content](integrating-content.md).
+A rune is **available by class** by default. Gating is **per-rune and opt-in** — a
+rune with no unlock mapping is never gated.
+
+- **Quest-gated** — a rune mapped in `rune_quest_unlock` is hidden at the engraver
+  until the character completes the quest. `OnPlayerCompleteQuest` records the
+  unlock per-character in `character_rune_unlock` (loaded on login alongside
+  engraved runes).
+- **Item-gated** — `rune_item_unlock` maps an item to rune(s); the engine's generic
+  `item_rune_unlock` `ItemScript` unlocks them (and consumes the item) on use.
+
+See [Integrating content](integrating-content.md).
 
 The catalog-side gating data (`rune_quest_unlock`) and the per-character unlock
 state live under the two different locks, so the engrave list is computed in two

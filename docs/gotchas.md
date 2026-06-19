@@ -15,13 +15,14 @@ true no-op without the engine. Full pattern in
 
 The engraver enforces SoD rules. Each slot has a minimum level
 (`RuneEngraving.SlotMinLevel.<Slot>`; defaults are the SoD phase-band starts —
-P1=1, P2=26, P3=41, P4=51), so a low-level character sees a slot as
-"(unlocks at N)" and can't engrave it. And
-`RuneEngraving.RequiredSpell` (0 = off by default) can gate the whole NPC behind a
-learned Engraving ability. If engraving is refused, check the character's level vs
-the slot's configured level and whether they've learned the required ability;
-`.rune slots` lists each slot's level and open/locked state. Also: the **same rune
-can't be engraved in two slots** (the engraver returns "already engraved").
+P1=1, P2=26, P3=41, P4=51), so a low-level character sees a slot as "(unlocks at N)"
+and can't engrave it. `RuneEngraving.RequiredSpell` (0 = off by default) can gate
+the whole NPC behind a learned Engraving ability.
+
+If engraving is refused, check the character's level vs the slot's configured level
+and whether they've learned the required ability; `.rune slots` lists each slot's
+level and open/locked state. Also: the **same rune can't be engraved in two slots**
+(the engraver returns "already engraved").
 
 ## The NPC is invisible or "underneath the city" — it's the Z coordinate
 

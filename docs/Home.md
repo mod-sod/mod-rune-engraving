@@ -7,7 +7,11 @@ a rune to gain its spell.
 
 These are developer docs: how the engine is built, how content modules plug into
 it, and how to deploy and verify it. For a high-level summary and install steps,
-see the README in the repo root.
+see the [README](https://github.com/bennybroseph/mod-rune-engraving) in the repo root.
+
+> **Just want to play?** You don't need these docs — the
+> [**SoD installer**](https://github.com/bennybroseph/sod-installer) sets everything
+> up in one command. These pages are for developers building or extending the engine.
 
 ## The one thing to internalize
 
