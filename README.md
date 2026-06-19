@@ -107,6 +107,12 @@ Developer docs (architecture, the content contract, the addon-UI protocol,
 deploy/verify, testing, gotchas) live in [`docs/`](docs/Home.md) and are mirrored
 to the project wiki. Start at [docs/Home.md](docs/Home.md).
 
+## Contributing
+
+Adding runes from a content module? Start from the guarded-SQL skeletons in
+[`templates/`](templates/README.md). Improving the engine itself? See
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Conventions
 
 No core edits — everything stays under `modules/mod-rune-engraving/`.
