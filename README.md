@@ -4,6 +4,10 @@ A reusable, **class-agnostic** [AzerothCore](https://www.azerothcore.org/) modul
 that adds a *Season of Discovery*-style **rune engraving** system for the WotLK
 **3.3.5a** client: players engrave a rune into a slot and gain its spell.
 
+> **Just want to play?** The [**SoD installer**](https://github.com/bennybroseph/sod-installer)
+> sets up this engine, its addon UI, and the SoD content modules in one command.
+> The manual steps below are for building from source.
+
 ## Goal
 
 Provide the engraving *mechanism* as a standalone, reusable engine — not tied to
