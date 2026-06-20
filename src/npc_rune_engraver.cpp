@@ -194,6 +194,11 @@ private:
             AddGossipItemFor(player, GOSSIP_ICON_INTERACT_1,
                 "|cFFFF0000[Debug] Reset my runes & quests|r", SENDER_RESET, 0);
 
+        // Also surface any quests this NPC offers (e.g. a content module's
+        // turn-ins) -- the custom gossip would otherwise replace the default
+        // menu and hide them. Generic; no content coupling.
+        player->PrepareQuestMenu(creature->GetGUID());
+
         SendGossipMenuFor(player, DEFAULT_GOSSIP_MESSAGE, creature->GetGUID());
     }
 
