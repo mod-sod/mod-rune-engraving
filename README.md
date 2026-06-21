@@ -70,10 +70,13 @@ Server-side only — there is **no client patch** for this module.
 
 ### Use it
 
-A **Rune Engraver** spawns in Stormwind (Trade District); `.npc add 700000` places
-more. Talk to it to engrave, or test headlessly:
+The engine ships a **Rune Engraver** template (entry `700000`, no world spawn).
+Any player can conjure a temporary one with **`.rune summon`** (it auto-despawns
+after a few minutes and is gone on restart) and talk to it to engrave. For a
+permanent placement, `.npc add 700000`. Or drive the engine headlessly:
 
 ```
+.rune summon               # spawn a temporary Rune Engraver gossip NPC (any player)
 .rune list                 # engraved runes for the selected character
 .rune slots                # each slot's unlock level + open/locked state
 .rune engrave <slot> <id>  # e.g. .rune engrave 4 7000001  (slot 4 = Chest)

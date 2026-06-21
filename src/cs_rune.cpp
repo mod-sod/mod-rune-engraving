@@ -23,8 +23,18 @@
 
 using namespace Acore::ChatCommands;
 
+namespace
+{
+    // The dedicated Rune Engraver NPC (rune_engraving_schema.sql). `.rune summon`
+    // spawns a TEMPORARY one at the caller: not saved to the DB, auto-despawns
+    // after RUNE_ENGRAVER_SUMMON_MS, and gone on a server restart.
+    constexpr uint32 RUNE_ENGRAVER_NPC       = 700000;
+    constexpr uint32 RUNE_ENGRAVER_SUMMON_MS = 5 * 60 * 1000; // 5 minutes
+}
+
 // .rune commands — a headless path to drive the engine without the gossip NPC,
-// useful for testing the engrave -> grant -> login-reapply loop.
+// useful for testing the engrave -> grant -> login-reapply loop. `.rune summon`
+// conjures a temporary engraver gossip NPC for the caller.
 class cs_rune : public CommandScript
 {
 public:
@@ -34,6 +44,7 @@ public:
     {
         static ChatCommandTable runeTable =
         {
+            { "summon",  HandleSummon,  SEC_PLAYER,        Console::No  },
             { "list",    HandleList,    SEC_GAMEMASTER,    Console::No  },
             { "slots",   HandleSlots,   SEC_GAMEMASTER,    Console::No  },
             { "engrave", HandleEngrave, SEC_GAMEMASTER,    Console::No  },
@@ -45,6 +56,24 @@ public:
         };
         static ChatCommandTable root = { { "rune", runeTable } };
         return root;
+    }
+
+    // Summons a temporary Rune Engraver at the caller. Ephemeral: not saved to the
+    // DB, auto-despawns after a few minutes, and gone on a server restart. Any
+    // player may summon their own; the gossip still enforces the engraving rules.
+    static bool HandleSummon(ChatHandler* handler)
+    {
+        Player* player = handler->GetPlayer();
+        if (!player)
+        {
+            handler->SendSysMessage("This command must be used in-game.");
+            return false;
+        }
+
+        player->SummonCreature(RUNE_ENGRAVER_NPC, *player, TEMPSUMMON_TIMED_DESPAWN,
+            RUNE_ENGRAVER_SUMMON_MS);
+        handler->SendSysMessage("A Rune Engraver appears for a short while.");
+        return true;
     }
 
     static bool HandleList(ChatHandler* handler)

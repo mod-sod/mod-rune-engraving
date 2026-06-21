@@ -67,10 +67,29 @@ DELETE FROM `rune_contract`;
 INSERT INTO `rune_contract` (`version`) VALUES (2);
 
 -- =====================================================================
--- No engraver NPC is seeded here. The engine ships only the `npc_rune_engraver`
--- gossip ScriptName (in C++); a content module supplies the actual creature and
--- binds it via `creature_template.ScriptName = 'npc_rune_engraver'`. In this
--- distribution that NPC is mod-sod-world's shared supply officer "Elaine Compton"
--- (entry 213077). To use the engraver standalone, give any creature that
--- ScriptName (e.g. via the world DB) or `.npc add` such a creature.
+-- The dedicated Rune Engraver NPC (entry 700000): the gossip front-end for the
+-- engine. The RuneEngraver addon and `.rune` are the primary UIs; this NPC is the
+-- in-world / debug gossip path. Shipped as a TEMPLATE only -- no world spawn --
+-- so it stays out of the world until a GM places it with `.npc add 700000`.
+-- Faction 35 (Friendly) so both Alliance and Horde can use it. Any other creature
+-- can also be made an engraver by binding it to ScriptName 'npc_rune_engraver'.
 -- =====================================================================
+REPLACE INTO `creature_template`
+    (`entry`, `name`, `subname`,
+     `minlevel`, `maxlevel`, `faction`, `npcflag`,
+     `speed_walk`, `speed_run`,
+     `unit_class`, `unit_flags`, `unit_flags2`, `type`, `flags_extra`,
+     `ScriptName`)
+VALUES
+    (700000, 'Rune Engraver', 'Engraving',
+     1, 1, 35, 1,            -- faction 35 = Friendly (both sides), npcflag GOSSIP
+     1.0, 1.14286,
+     1, 2, 0, 7, 2,          -- NON_ATTACKABLE humanoid, CIVILIAN
+     'npc_rune_engraver');
+
+-- Placeholder display 24292 (a stock female human NPC); appearance is incidental
+-- for this utility NPC -- swap freely.
+REPLACE INTO `creature_template_model`
+    (`CreatureID`, `Idx`, `CreatureDisplayID`, `DisplayScale`, `Probability`)
+VALUES
+    (700000, 0, 24292, 1.0, 1.0);

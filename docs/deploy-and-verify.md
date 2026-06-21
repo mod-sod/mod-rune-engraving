@@ -46,8 +46,9 @@ for a live spawn's coordinates.)
 
 ## 4. The engraver NPC
 
-The schema spawns a **Rune Engraver** (entry `700000`) in Stormwind. To place more,
-target a spot and `.npc add 700000`. Picking a good coordinate matters — see the
+The schema ships a **Rune Engraver** template (entry `700000`) with no world spawn.
+The easy way to reach one is **`.rune summon`** (any player; temporary, auto-despawns).
+For a permanent placement, `.npc add 700000` — picking a good coordinate matters — see the
 underground-spawn note in [Gotchas](gotchas.md); use `.gps` (its `FloorZ` is the
 true surface) at the desired spot.
 

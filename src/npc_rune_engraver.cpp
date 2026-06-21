@@ -35,6 +35,8 @@ enum RuneGossipSender
     SENDER_UNENGRAVE = 3, // action = RuneSlot      -> clear that slot
     SENDER_BACK      = 4, // action = 0             -> back to the slot list
     SENDER_RESET     = 5, // action = 0             -> debug: reset quests + unlocks
+    SENDER_OPEN      = 6, // action = 0             -> root: open the rune engraving menu
+    SENDER_ROOT      = 7, // action = 0             -> back to the root gossip
 };
 
 // The slot a player is currently browsing, so a SENDER_RUNE pick knows where to
@@ -50,24 +52,7 @@ public:
 
     bool OnGossipHello(Player* player, Creature* creature) override
     {
-        if (!sRuneEngravingMgr->IsEnabled())
-        {
-            ChatHandler(player->GetSession()).SendSysMessage(
-                "|cFFFF0000[Rune Engraver]|r Rune engraving is currently unavailable.");
-            player->PlayerTalkClass->SendCloseGossip();
-            return true;
-        }
-
-        if (!sRuneEngravingMgr->MeetsPrereq(player))
-        {
-            ChatHandler(player->GetSession()).SendSysMessage(
-                "|cFFFF0000[Rune Engraver]|r You must learn Engraving before you can "
-                "engrave runes.");
-            player->PlayerTalkClass->SendCloseGossip();
-            return true;
-        }
-
-        ShowSlotMenu(player, creature);
+        ShowRootMenu(player, creature);
         return true;
     }
 
@@ -140,6 +125,30 @@ public:
                 ShowSlotMenu(player, creature);
                 break;
             }
+            case SENDER_OPEN:
+            {
+                // Engine could have been disabled, or the player may not yet meet
+                // the learn-Engraving prerequisite -- keep the gossip open on the
+                // root either way so quests / vendor stay reachable.
+                if (!sRuneEngravingMgr->IsEnabled())
+                {
+                    ShowRootMenu(player, creature);
+                    break;
+                }
+                if (!sRuneEngravingMgr->MeetsPrereq(player))
+                {
+                    ChatHandler(player->GetSession()).SendSysMessage(
+                        "|cFFFF0000[Rune Engraver]|r You must learn Engraving before you "
+                        "can engrave runes.");
+                    ShowRootMenu(player, creature);
+                    break;
+                }
+                ShowSlotMenu(player, creature);
+                break;
+            }
+            case SENDER_ROOT:
+                ShowRootMenu(player, creature);
+                break;
             case SENDER_BACK:
             default:
                 ShowSlotMenu(player, creature);
@@ -162,7 +171,25 @@ private:
         return it != sBrowsingSlot.end() ? it->second : RUNE_SLOT_MAX;
     }
 
-    // Top level: one entry per engraving slot, annotated with its current rune.
+    // Root gossip: a single "Rune Engraving" entry (when the engine is enabled)
+    // plus the NPC's own quests. The rune flow now lives one level down so the
+    // initial menu stays uncluttered on these quest-giver / vendor NPCs.
+    void ShowRootMenu(Player* player, Creature* creature)
+    {
+        player->PlayerTalkClass->ClearMenus();
+
+        if (sRuneEngravingMgr->IsEnabled())
+            AddGossipItemFor(player, GOSSIP_ICON_TRAINER, "Rune Engraving", SENDER_OPEN, 0);
+
+        // Surface the NPC's quests (a content module's turn-ins) -- the custom
+        // gossip would otherwise replace the default menu and hide them. Generic;
+        // no content coupling.
+        player->PrepareQuestMenu(creature->GetGUID());
+
+        SendGossipMenuFor(player, DEFAULT_GOSSIP_MESSAGE, creature->GetGUID());
+    }
+
+    // Second level: one entry per engraving slot, annotated with its current rune.
     void ShowSlotMenu(Player* player, Creature* creature)
     {
         player->PlayerTalkClass->ClearMenus();
@@ -194,10 +221,7 @@ private:
             AddGossipItemFor(player, GOSSIP_ICON_INTERACT_1,
                 "|cFFFF0000[Debug] Reset my runes & quests|r", SENDER_RESET, 0);
 
-        // Also surface any quests this NPC offers (e.g. a content module's
-        // turn-ins) -- the custom gossip would otherwise replace the default
-        // menu and hide them. Generic; no content coupling.
-        player->PrepareQuestMenu(creature->GetGUID());
+        AddGossipItemFor(player, GOSSIP_ICON_CHAT, "<- Back", SENDER_ROOT, 0);
 
         SendGossipMenuFor(player, DEFAULT_GOSSIP_MESSAGE, creature->GetGUID());
     }
