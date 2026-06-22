@@ -57,8 +57,11 @@ RuneEngraving.RequiredSpell = 0
 #                     below the level sees the slot as "(unlocks at N)" and cannot
 #                     engrave it. Set to 1 to make a slot always available.
 #
-#                     Defaults map each SoD engraving slot to the START of its
-#                     phase's level band (phase caps were 25/40/50/60):
+#                     The shipped defaults set every slot to 1 (all slots available
+#                     from level 1). The commented phase-gated block below maps each
+#                     SoD engraving slot to the START of its phase's level band (phase
+#                     caps were 25/40/50/60) -- uncomment it (and comment the level-1
+#                     block) to restore SoD-style progression:
 #                       Chest/Legs/Hands   = 1   (Phase 1)
 #                       Waist/Feet         = 26  (Phase 2)
 #                       Head/Wrist         = 41  (Phase 3)
@@ -72,14 +75,28 @@ RuneEngraving.RequiredSpell = 0
 #                     toward the phase caps, or set 1 to drop level gating.
 #
 
-RuneEngraving.SlotMinLevel.Head     = 41
-RuneEngraving.SlotMinLevel.Neck     = 60
-RuneEngraving.SlotMinLevel.Shoulder = 60
-RuneEngraving.SlotMinLevel.Cloak    = 51
+# Default: every slot available at level 1 (no level gating).
+RuneEngraving.SlotMinLevel.Head     = 1
+RuneEngraving.SlotMinLevel.Neck     = 1
+RuneEngraving.SlotMinLevel.Shoulder = 1
+RuneEngraving.SlotMinLevel.Cloak    = 1
 RuneEngraving.SlotMinLevel.Chest    = 1
-RuneEngraving.SlotMinLevel.Wrist    = 41
+RuneEngraving.SlotMinLevel.Wrist    = 1
 RuneEngraving.SlotMinLevel.Hands    = 1
-RuneEngraving.SlotMinLevel.Waist    = 26
+RuneEngraving.SlotMinLevel.Waist    = 1
 RuneEngraving.SlotMinLevel.Legs     = 1
-RuneEngraving.SlotMinLevel.Feet     = 26
-RuneEngraving.SlotMinLevel.Ring     = 51
+RuneEngraving.SlotMinLevel.Feet     = 1
+RuneEngraving.SlotMinLevel.Ring     = 1
+
+# SoD phase-gated values (uncomment this block and comment the one above to restore):
+#RuneEngraving.SlotMinLevel.Head     = 41
+#RuneEngraving.SlotMinLevel.Neck     = 60
+#RuneEngraving.SlotMinLevel.Shoulder = 60
+#RuneEngraving.SlotMinLevel.Cloak    = 51
+#RuneEngraving.SlotMinLevel.Chest    = 1
+#RuneEngraving.SlotMinLevel.Wrist    = 41
+#RuneEngraving.SlotMinLevel.Hands    = 1
+#RuneEngraving.SlotMinLevel.Waist    = 26
+#RuneEngraving.SlotMinLevel.Legs     = 1
+#RuneEngraving.SlotMinLevel.Feet     = 26
+#RuneEngraving.SlotMinLevel.Ring     = 51
